@@ -17,6 +17,15 @@
 </head>
 <body>
     <div id="root"></div>
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js",
+        "react-router-dom": "https://cdnjs.cloudflare.com/ajax/libs/react-router-dom/6.17.0/react-router-dom.production.min.js",
+        "react-toastify":"https://cdn.jsdelivr.net/npm/react-toastify@9.1.3/dist/react-toastify.min.js"
+      }
+    }
+  </script>
 
     <!-- Your TSX file -->
     <script type="text/babel" data-type="module" data-presets="typescript,react" src="feedback-visualization.tsx"></script>
