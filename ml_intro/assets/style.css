@@ -1,0 +1,188 @@
+/* ============================================================
+   FH Campus Wien deck — design system (from 03_Modeling part 2)
+   Font: Verdana · white bg · footer "FH Campus Wien | n"
+   Palette: 005596 / 00A0D8 / 0088A9 / 7D5C9E / EF8900 / F9BA00
+             F26B43 / FBAE40 · ink 4A4D53
+   ============================================================ */
+:root{
+  --blue:#005596; --lblue:#00A0D8; --teal:#0088A9; --purple:#7D5C9E;
+  --orange:#EF8900; --yellow:#F9BA00; --coral:#F26B43; --amber:#FBAE40;
+  --ink:#4A4D53; --paper:#ffffff; --soft:#f2f5f8;
+}
+*{box-sizing:border-box; margin:0; padding:0}
+html,body{height:100%}
+body{font-family:Verdana, Geneva, sans-serif; color:var(--ink); background:#dfe5ec; overflow:hidden}
+
+#viewport{position:fixed; inset:0; display:flex; align-items:center; justify-content:center}
+#stage{position:relative; width:1280px; height:720px; background:var(--paper);
+  box-shadow:0 12px 50px rgba(0,30,60,.35); transform-origin:center center; overflow:hidden}
+
+#progress{position:absolute; top:0; left:0; right:0; height:6px; background:#e3e8ee; z-index:50}
+#progressFill{height:100%; width:0; background:var(--blue); transition:width .35s ease}
+
+#hud{position:absolute; left:0; right:0; bottom:0; height:34px; display:flex; align-items:center;
+  justify-content:space-between; padding:0 18px; font-size:11px; color:#8a919b; z-index:50; pointer-events:none}
+#counter{font-weight:bold; color:var(--ink)}
+
+#deck{position:absolute; inset:0}
+
+/* ---------- slide base ---------- */
+.slide{position:absolute; inset:0; padding:64px 80px 70px; display:none; flex-direction:column;
+  --acc:var(--blue); --acc2:var(--lblue)}
+.slide.active{display:flex}
+.slide[data-accent="blue"]  {--acc:var(--blue);   --acc2:var(--lblue)}
+.slide[data-accent="lblue"] {--acc:var(--lblue);  --acc2:var(--blue)}
+.slide[data-accent="teal"]  {--acc:var(--teal);   --acc2:var(--lblue)}
+.slide[data-accent="purple"]{--acc:var(--purple); --acc2:var(--lblue)}
+.slide[data-accent="orange"]{--acc:var(--orange); --acc2:var(--amber)}
+.slide[data-accent="coral"] {--acc:var(--coral);  --acc2:var(--orange)}
+
+.ttl{font-size:38px; line-height:1.15; color:var(--acc); font-weight:bold; margin-bottom:26px}
+.ttl .sub{color:var(--ink); font-weight:normal; font-size:26px}
+.body{flex:1; display:flex; flex-direction:column; justify-content:center; min-height:0}
+
+/* bullets with ">" like the source deck */
+.bl{list-style:none; font-size:21px; line-height:1.55}
+.bl li{margin:10px 0; padding-left:30px; position:relative}
+.bl li::before{content:">"; position:absolute; left:0; color:var(--acc); font-weight:bold}
+.bl li .hl{color:var(--acc); font-weight:bold}
+.bl.small{font-size:18px}
+.bl.tight li{margin:5px 0}
+
+.foot{position:absolute; left:80px; right:80px; bottom:44px; display:flex; justify-content:space-between;
+  font-size:13px; color:#9aa1ab; border-top:1px solid #e6eaef; padding-top:8px}
+.foot .num{font-weight:bold; color:var(--ink)}
+
+/* ---------- steps / reveals ---------- */
+.step{opacity:0; transition:opacity .5s ease, transform .5s ease, background-color .3s, box-shadow .3s, color .3s}
+.step.rise{transform:translateY(16px)}
+.step.zoom{transform:scale(.85)}
+.step.on{opacity:1; transform:none}
+svg .step{transition:opacity .5s ease}
+
+/* glow sync between formulas and confusion-matrix cells */
+[data-cell]{transition:background-color .3s, box-shadow .3s}
+.glow{background:var(--yellow) !important; box-shadow:inset 0 0 0 3px var(--coral)}
+
+/* ---------- title & divider slides ---------- */
+.slide.center{align-items:center; justify-content:center; text-align:center}
+.big{font-size:92px; line-height:1.05; font-weight:bold; color:var(--acc)}
+.big .w{display:inline-block; margin:0 .12em}
+.big .w:nth-child(2){color:var(--acc2)}
+.big .w:nth-child(3){color:var(--ink)}
+.kicker{font-size:24px; letter-spacing:.35em; text-transform:uppercase; color:#9aa1ab; margin-bottom:28px}
+.subtitle{font-size:30px; color:var(--ink); margin-top:30px}
+.brand{position:absolute; top:54px; left:80px; font-size:15px; color:var(--acc); font-weight:bold}
+
+/* ---------- generic components ---------- */
+.cols{display:flex; gap:48px; align-items:stretch}
+.col{flex:1; min-width:0}
+.card{background:var(--soft); border:2px solid #e0e6ec; border-radius:12px; padding:22px 26px; font-size:19px}
+.card h3{color:var(--acc); margin-bottom:10px; font-size:21px}
+.card.accent{border-color:var(--acc); background:#fff}
+.pill{display:inline-block; padding:4px 14px; border-radius:20px; background:var(--acc); color:#fff;
+  font-size:15px; font-weight:bold}
+.note{font-size:16px; color:#8a919b; margin-top:14px}
+.why{font-size:17px; color:var(--acc); background:var(--soft); border-left:5px solid var(--acc);
+  padding:10px 16px; margin-top:16px; border-radius:0 8px 8px 0}
+.q{font-size:30px; line-height:1.4; margin:18px 0}
+.ans{font-size:21px; background:var(--soft); border-radius:10px; padding:18px 22px; margin-top:14px; line-height:1.5}
+
+table.data{border-collapse:collapse; font-size:19px; width:100%}
+table.data th{background:var(--acc); color:#fff; padding:10px 16px; text-align:left}
+table.data td{padding:9px 16px; border-bottom:1px solid #e3e8ee}
+table.data tr:nth-child(even) td{background:var(--soft)}
+td.y, .y{color:var(--teal); font-weight:bold}
+td.n, .n{color:var(--coral); font-weight:bold}
+
+/* confusion matrix */
+table.cm{border-collapse:collapse; font-size:19px; margin:0 auto}
+table.cm th{background:var(--acc); color:#fff; padding:12px 22px}
+table.cm td{padding:14px 22px; border:2px solid #d6dde5; text-align:center; min-width:150px}
+table.cm td.lab{background:var(--soft); font-weight:bold}
+.chip{display:inline-block; margin:3px; padding:3px 10px; border-radius:14px; font-size:13px; color:#fff}
+.chip.tp{background:var(--teal)} .chip.fp{background:var(--coral)}
+.chip.fn{background:var(--orange)} .chip.tn{background:var(--blue)}
+
+/* KaTeX */
+.math{display:block; text-align:center; margin:14px 0; font-size:24px}
+.math.sm{font-size:19px; margin:8px 0}
+.katex{font-size:1.02em}
+.katex .hlA{color:var(--orange)} .katex .hlB{color:var(--teal)}
+.katex .hlC{color:var(--purple)} .katex .hlY{color:var(--coral)}
+.katex-display{margin:.4em 0}
+
+/* sliders & canvases */
+input[type=range]{width:100%; accent-color:var(--acc); height:28px}
+canvas.plot{background:#fff; border:1px solid #e0e6ec; border-radius:10px}
+.readout{font-size:18px; margin:6px 0}
+.readout b{color:var(--acc)}
+.btn{display:inline-block; border:2px solid var(--acc); color:var(--acc); background:#fff; border-radius:24px;
+  padding:8px 20px; font-size:17px; font-family:inherit; cursor:pointer; margin:4px}
+.btn:hover{background:var(--acc); color:#fff}
+
+/* bars (imbalance demo) */
+.barRow{display:flex; align-items:center; margin:10px 0; font-size:18px}
+.barRow .lab{width:150px; font-weight:bold}
+.barRow .track{flex:1; background:#edf0f4; border-radius:8px; height:30px; position:relative}
+.barRow .fill{height:100%; border-radius:8px; background:var(--acc); transition:width .4s ease}
+.barRow .val{width:90px; text-align:right; font-weight:bold; color:var(--ink)}
+
+/* folds */
+.folds{display:flex; gap:10px; margin:20px 0}
+.fold{flex:1; height:110px; border-radius:10px; background:var(--soft); border:2px solid #d6dde5;
+  display:flex; align-items:center; justify-content:center; font-size:15px; color:#8a919b; transition:all .4s}
+.fold.test{background:var(--purple); border-color:var(--purple); color:#fff; font-weight:bold}
+.fold.train{background:#e7def5; border-color:var(--purple)}
+
+/* flip cards (self-check) */
+.cards3{display:flex; gap:24px; margin-top:18px}
+.card.flip3{flex:1; cursor:pointer; min-height:190px; position:relative; background:#fff; border-color:var(--acc)}
+.card.flip3 .back{display:none; color:var(--ink)}
+.card.flip3.flipped .front{display:none}
+.card.flip3.flipped .back{display:block}
+
+/* svg helpers */
+.node{fill:#fff; stroke:var(--acc); stroke-width:2.5; rx:10}
+.node.q{fill:var(--soft)}
+.node.leafY{fill:var(--teal); stroke:var(--teal)}
+.node.leafN{fill:var(--coral); stroke:var(--coral)}
+.node text{fill:var(--ink); font-size:16px; text-anchor:middle; font-family:Verdana}
+
+/* vertical flowchart (decision-tree algorithm) */
+.flowwrap{position:relative; width:1120px; margin:0 auto; display:flex; justify-content:center}
+.flowcol{display:flex; flex-direction:column; align-items:center; width:460px}
+.flowbox{background:var(--soft); border:2px solid var(--acc); border-radius:12px; padding:12px 22px;
+  font-size:19px; text-align:center; width:100%; margin:2px 0}
+.flowbox.head{background:var(--acc); color:#fff; font-weight:bold}
+.flowbox.leaf{background:var(--teal); border-color:var(--teal); color:#fff; font-weight:bold}
+.flowarrow{font-size:26px; color:var(--acc); line-height:1.1; font-weight:bold}
+.stopbox{position:absolute; right:0; top:150px; width:330px; border:2px dashed var(--coral);
+  border-radius:12px; padding:14px 18px; font-size:17px; background:#fff}
+.stopbox h3{color:var(--coral); font-size:18px; margin-bottom:6px}
+.looplab{font-size:15px; fill:var(--purple); font-weight:bold; font-family:Verdana}
+.node.leafY text,.node.leafN text{fill:#fff; font-weight:bold}
+.edge{stroke:var(--acc); stroke-width:2.5; fill:none}
+.elab{font-size:15px; fill:var(--ink); font-family:Verdana}
+.pt{stroke:#fff; stroke-width:1.5}
+.split{stroke:var(--coral); stroke-width:3; stroke-dasharray:8 6}
+.regionY{fill:rgba(0,136,169,.16)} .regionN{fill:rgba(242,107,67,.12)}
+.ring{fill:none; stroke:var(--coral); stroke-width:3}
+
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:26px}
+.grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:22px}
+.tile{background:var(--soft); border:2px solid #e0e6ec; border-radius:12px; padding:20px; font-size:18px; text-align:center}
+.tile.on, .tile.hot{border-color:var(--acc); background:#fff}
+.tile .big{font-size:30px; font-weight:bold; color:var(--acc); display:block; margin-bottom:8px}
+.tile.pulse{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,137,0,.0)} 50%{box-shadow:0 0 0 12px rgba(239,137,0,.25); border-color:var(--orange)}}
+
+.agenda{display:grid; grid-template-columns:1fr 1fr; gap:26px; width:100%; max-width:1000px}
+.agenda a{text-decoration:none; color:var(--ink); background:var(--soft); border:2px solid #e0e6ec;
+  border-radius:12px; padding:24px 28px; font-size:22px; transition:all .3s}
+.agenda a:hover{border-color:var(--acc); background:#fff}
+.agenda a .no{color:var(--acc); font-weight:bold; margin-right:12px}
+.agenda a .sm{display:block; font-size:15px; color:#8a919b; margin-top:6px}
+
+.two{columns:2; gap:60px}
+.muted{color:#8a919b} .mono{font-family:Consolas, monospace; font-size:.9em}
