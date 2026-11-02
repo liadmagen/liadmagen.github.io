@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modeling — Text Models &amp; Features · Introduction to Machine Learning for Language Processing</title>
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div id="viewport">
+  <div id="stage">
+    <div id="progress"><div id="progressFill"></div></div>
+    <div id="deck"><!-- slides are injected by assets/slides-*.js --></div>
+    <div id="hud">
+      <span id="hint">&#8594; / space: next step &nbsp;·&nbsp; &#8592;: back &nbsp;·&nbsp; click: advance</span>
+      <span id="counter"></span>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/auto-render.min.js"></script>
+<script src="assets/deck.js"></script>
+<script src="assets/slides-00.js"></script>
+<script src="assets/slides-01.js"></script>
+<script src="assets/slides-02.js"></script>
+<script src="assets/slides-03.js"></script>
+<script src="assets/slides-04.js"></script>
+<script src="assets/anims.js"></script>
+<script>
+  renderMathInElement(document.body, {
+    delimiters: [
+      { left: "$$", right: "$$", display: true },
+      { left: "$",  right: "$",  display: false }
+    ],
+    throwOnError: false,
+    strict: false,
+    trust: true
+  });
+  initDeck();
+</script>
+</body>
+</html>
