@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pointwise Mutual Information — A Visual Introduction</title>
+<meta name="description" content="A scroll-driven, animated HTML5 tutorial on pointwise mutual information (PMI): co-occurrence counts, the independence baseline, the PMI formula, PPMI, mutual information as E[PMI], and PMI word matrices in NLP.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
+<style>
+  :root{
+    --ink:#1d2733; --muted:#5b6b7c; --bg:#faf9f6; --card:#ffffff;
+    --blue:#2f6fed; --blue-soft:#dbe7fe; --orange:#f08a1d; --orange-soft:#fde8d2;
+    --green:#1f9d63; --red:#d64545; --line:#e5e1d8; --accent:#6d5bd0;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;font-size:17px;}
+  h1,h2,h3{line-height:1.2}
+  a{color:var(--blue)}
+
+  /* ---------- hero ---------- */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;
+    text-align:center;padding:3rem 1.5rem;background:
+    radial-gradient(1200px 500px at 20% -10%, #e8efff 0%, transparent 60%),
+    radial-gradient(1000px 500px at 85% 110%, #fdeeda 0%, transparent 55%), var(--bg);}
+  .hero .kicker{letter-spacing:.22em;text-transform:uppercase;font-size:.8rem;color:var(--accent);font-weight:700}
+  .hero h1{font-size:clamp(2.2rem,6vw,4.2rem);margin:.6rem 0 .8rem;max-width:16ch}
+  .hero p{max-width:56ch;color:var(--muted);font-size:1.15rem}
+  .scroll-hint{margin-top:3.5rem;color:var(--muted);font-size:.85rem;animation:bob 1.8s ease-in-out infinite}
+  .scroll-hint .arrow{display:block;font-size:1.4rem}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
+
+  /* ---------- progress nav ---------- */
+  #dotnav{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:12px}
+  #dotnav a{width:12px;height:12px;border-radius:50%;background:#cfc9bc;display:block;position:relative;transition:background .3s,transform .3s}
+  #dotnav a.on{background:var(--accent);transform:scale(1.35)}
+  #dotnav a span{position:absolute;right:20px;top:50%;transform:translateY(-50%);white-space:nowrap;
+    background:var(--ink);color:#fff;font-size:.72rem;padding:.15rem .55rem;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s}
+  #dotnav a:hover span{opacity:1}
+
+  /* ---------- scrolly layout ---------- */
+  .chapter{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:1.5rem;
+    padding:0 clamp(.5rem,3vw,3rem);align-items:start}
+  .chapter + .chapter{margin-top:38vh}
+  .sticky{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
+    justify-content:center;align-items:center;gap:.5rem;padding:.6rem 0}
+  .sticky svg{width:100%;max-width:720px;height:auto;max-height:calc(100vh - 92px);background:var(--card);
+    border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(30,40,60,.07)}
+  .sticky .caption{font-size:.82rem;color:var(--muted);text-align:center;min-height:1.2em}
+  .steps{display:flex;flex-direction:column;gap:60vh;padding:12vh 0}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:1.3rem 1.4rem;box-shadow:0 6px 18px rgba(30,40,60,.06);
+    opacity:.22;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease}
+  .step.active{opacity:1;transform:none}
+  .step h3{margin:.1rem 0 .5rem;font-size:1.25rem}
+  .step p{margin:.45rem 0;color:#33404f}
+  .step .tag{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--accent);background:#efecfb;border-radius:6px;padding:.12rem .5rem;margin-bottom:.4rem}
+  .formula{display:block;background:#f4f2ec;border:1px solid var(--line);border-radius:10px;
+    padding:.7rem .9rem;margin:.7rem 0;font-size:1.02rem;overflow-x:auto;white-space:nowrap}
+  .formula .hl{background:#fff3c4;border-radius:4px;padding:0 .15em}
+  .math{font-size:15px;line-height:1.55;color:var(--ink)}
+  .math.bigmath{font-size:22px;font-weight:700;color:var(--accent)}
+  .math.midmath{font-size:15px;font-weight:700;color:var(--accent)}
+  .math.smallmath{font-size:12px}
+  .math.nomath{font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;line-height:1.45}
+  foreignObject{overflow:visible}
+  pre.code{background:#232b36;color:#e8edf4;border-radius:10px;padding:.9rem 1rem;margin:.7rem 0;
+    font-family:var(--mono);font-size:.8rem;line-height:1.55;overflow-x:auto}
+  pre.code .ln{display:block;border-radius:5px;padding:0 .4rem;margin:0 -.4rem}
+  pre.code .ln.hot{background:#3d4a5e;box-shadow:inset 3px 0 0 var(--accent)}
+  pre.code .cm{color:#8fa1b8}
+  pre.code .fn{color:#c792ea;font-weight:700}
+  pre.code .var{color:#82aaff}
+  pre.code .kw{color:#ff9cac;font-weight:700}
+  .kv{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem}
+  .kv b{background:#f4f2ec;border:1px solid var(--line);border-radius:8px;padding:.15rem .55rem;font-family:var(--mono);font-size:.85rem}
+  .legend{display:flex;gap:1rem;justify-content:center;font-size:.85rem;color:var(--muted)}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:.35rem;vertical-align:-1px}
+
+  footer{border-top:1px solid var(--line);margin-top:8vh;padding:3rem 1.5rem 4rem;
+    text-align:center;color:var(--muted);font-size:.9rem}
+  footer p{max-width:70ch;margin:.4rem auto}
+
+  /* svg element transitions (geometry props are CSS-animatable in modern browsers) */
+  svg .anim{transition:opacity .5s ease,transform .6s cubic-bezier(.4,0,.2,1),x .6s ease,y .6s ease,
+    cx .6s ease,cy .6s ease,r .6s ease,width .6s ease,height .6s ease,x1 .6s ease,x2 .6s ease,y1 .6s ease,y2 .6s ease,fill .5s ease,stroke .5s ease}
+  @media (prefers-reduced-motion:reduce){svg .anim{transition:none}html{scroll-behavior:auto}.scroll-hint{animation:none}}
+
+  @media (max-width:920px){
+    .chapter{grid-template-columns:1fr}
+    .sticky{top:0;height:52vh;z-index:5;padding:.3rem 0}
+    .sticky svg{max-height:calc(52vh - 56px)}
+    .steps{padding:6vh 0;gap:40vh}
+    #dotnav{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="kicker">Introduction to Machine Learning for NLP</div>
+  <h1>Pointwise Mutual Information</h1>
+  <p>A scroll-driven visual tour of PMI: how counting word co-occurrences in a tiny corpus,
+     comparing them against a chance baseline, and taking a logarithm gives a principled
+     measure of association between words — the workhorse behind collocation extraction,
+     PPMI word matrices and modern word embeddings. Inspired by
+     <a href="https://www.r2d3.us/visual-intro-to-machine-learning-part-1/">R2D3</a>.</p>
+  <div class="scroll-hint">scroll to begin<span class="arrow">↓</span></div>
+</header>
+
+<nav id="dotnav" aria-label="Chapters"></nav>
+
+<main>
+
+  <!-- ================= Chapter 1 ================= -->
+  <section class="chapter" id="ch1">
+    <div class="sticky">
+      <svg id="viz1" viewBox="0 0 640 560" role="img" aria-label="Co-occurrence constellation around the word tea"></svg>
+      <div class="caption" id="cap1"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="pairs">
+        <span class="tag">1 · Collocations</span>
+        <h3>Some word pairs just belong together</h3>
+        <p>“<b>strong tea</b>” is a natural English phrase; “<b>powerful tea</b>” is grammatical
+           but odd. Both are just two words near each other — so what actually separates them?
+           <b>How often they co-occur.</b> We count word pairs in a tiny toy English corpus
+           (21 hard-coded sentences), computed live in your browser by <code>pmi-math.js</code>.</p>
+      </div>
+      <div class="step" data-scene="counts">
+        <span class="tag">1 · Collocations</span>
+        <h3>Count co-occurrences in a window</h3>
+        <p>Each word is paired with every vocabulary word within a window of
+           <b>±3 positions</b> in the same sentence. Around <b>tea</b> the spokes thicken with the
+           count: <b>strong × 7</b>, coffee × 3, morning × 3, …</p>
+      </div>
+      <div class="step" data-scene="rare">
+        <span class="tag">1 · Collocations</span>
+        <h3>“powerful × tea” is rare — but is rarity the signal?</h3>
+        <p>It happens only <b>once</b> in the corpus. But “powerful” also appears next to
+           <b>engine</b> (×3) and <b>computer</b> (×3) — so a small count alone does not make a
+           collocation, and a big count alone does not either.</p>
+      </div>
+      <div class="step" data-scene="baseline">
+        <span class="tag">1 · Collocations</span>
+        <h3>Raw counts mislead: frequent words co-occur with everything</h3>
+        <p>“strong” is a frequent word, so it co-occurs with lots of things <i>by chance</i>.
+           The dashed spokes show the count we would <b>expect under independence</b>.
+           To judge a pair we must compare observed vs. expected — that baseline is the next chapter.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 2 ================= -->
+  <section class="chapter" id="ch2">
+    <div class="sticky">
+      <svg id="viz2" viewBox="0 0 640 560" role="img" aria-label="Co-occurrence count heatmap"></svg>
+      <div class="caption" id="cap2"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="matrix">
+        <span class="tag">2 · Counts → probabilities</span>
+        <h3>The co-occurrence matrix F</h3>
+        <p>All pair counts live in one matrix: rows and columns are the 10 vocabulary words,
+           cell <b>f<sub>ij</sub></b> = how often word <i>i</i> and word <i>j</i> co-occur in the window.
+           Darker cell = bigger count. The matrix is symmetric — the pair (tea, strong) counts once.</p>
+      </div>
+      <div class="step" data-scene="marginals">
+        <span class="tag">2 · Counts → probabilities</span>
+        <h3>Marginals: row and column sums</h3>
+        <p>Summing a row gives <b>f<sub>i*</sub> = Σ<sub>j</sub> f<sub>ij</sub></b> — how many pairs involve word <i>i</i>
+           (SLP3 J.5). The edge bars show these marginals: tea is the most connected word (16),
+           storm the least (1).</p>
+      </div>
+      <div class="step" data-scene="joint">
+        <span class="tag">2 · Counts → probabilities</span>
+        <h3>Joint probabilities: p<sub>ij</sub> = f<sub>ij</sub> / N</h3>
+        <p>Divide every cell by the total <b>N</b> = sum of all cells (= 68 here) and the counts become
+           a proper joint distribution: <span class="formula" data-fallback="p_ij = f_ij / N,   Σ p_ij = 1">\(p_{ij} = f_{ij}/N, \quad \sum_{ij} p_{ij} = 1\)</span>
+           Cells now show per-mille values.</p>
+      </div>
+      <div class="step" data-scene="total">
+        <span class="tag">2 · Counts → probabilities</span>
+        <h3>From counts to a probability distribution</h3>
+        <p>N counts every (ordered) pair in the window — 68 for our corpus.
+           <span class="formula" data-fallback="p(x,y) = f(x,y)/N,  p(x) = Σ_y p(x,y)">\(p(x,y) = \tfrac{f(x,y)}{N}, \qquad p(x) = \textstyle\sum_y p(x,y)\)</span>
+           With p(x,y), p(x) and p(y) we have everything PMI needs.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 3 ================= -->
+  <section class="chapter" id="ch3">
+    <div class="sticky">
+      <svg id="viz3" viewBox="0 0 640 560" role="img" aria-label="Contingency table and observed vs expected bars"></svg>
+      <div class="caption" id="cap3"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="table">
+        <span class="tag">3 · The independence baseline</span>
+        <h3>Observed counts in a 2×2 contingency table</h3>
+        <p>For the pair <b>(tea, strong)</b> the corpus gives a 2×2 table:
+           <b>a = 7</b> (both), <b>b = 4</b> (strong only), <b>c = 9</b> (tea only),
+           <b>d = 48</b> (neither). The cells sum to N = 68.</p>
+      </div>
+      <div class="step" data-scene="expected">
+        <span class="tag">3 · The independence baseline</span>
+        <h3>Expected under independence: E = f<sub>i</sub>·f<sub>j</sub> / N</h3>
+        <p>If the words were <b>independent</b>, we would expect
+           <span class="formula" data-fallback="E[f_ij] = N·p(x)·p(y) = f_i·f_j / N = 11·16/68 ≈ 2.59">\(E[f_{ij}] = N\,p(x)p(y) = \tfrac{f_i f_j}{N} = \tfrac{11 \cdot 16}{68} \approx 2.59\)</span>
+           co-occurrences of tea×strong. We <b>observed 7</b> — more than chance. The bars compare them.</p>
+      </div>
+      <div class="step" data-scene="repulsion">
+        <span class="tag">3 · The independence baseline</span>
+        <h3>“powerful × tea”: observed 1 &lt; expected 1.88</h3>
+        <p>Flip the pair and the bars flip: <b>powerful × tea</b> is observed once but expected ~1.88 times
+           under independence — the words <b>repel</b> each other (ratio &lt; 1).</p>
+      </div>
+      <div class="step" data-scene="ratio">
+        <span class="tag">3 · The independence baseline</span>
+        <h3>The ratio obs/exp decides everything</h3>
+        <p>Every pair gets one number: <b>ratio = observed / expected</b>.
+           <span class="formula" data-fallback="ratio = p(x,y) / (p(x)p(y))">\(\text{ratio} = \tfrac{p(x,y)}{p(x)\,p(y)} = \tfrac{\text{observed}}{\text{expected}}\)</span>
+           ratio &gt; 1 → association, = 1 → independence, &lt; 1 → repulsion.
+           PMI is simply the <b>logarithm</b> of this ratio.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 4 ================= -->
+  <section class="chapter" id="ch4">
+    <div class="sticky">
+      <svg id="viz4" viewBox="0 0 640 560" role="img" aria-label="PMI formula morph and association gauge"></svg>
+      <div class="caption" id="cap4"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="def">
+        <span class="tag">4 · The PMI formula</span>
+        <h3>PMI = log₂ of the obs/exp ratio</h3>
+        <p><b>Pointwise mutual information</b> (Church &amp; Hanks 1989; Fano 1961) is defined as
+           <span class="formula" data-fallback="PMI(x,y) = log2( p(x,y) / (p(x)·p(y)) )">\(\mathrm{PMI}(x,y) = \log_2 \frac{p(x,y)}{p(x)\,p(y)}\)</span>
+           In counts (SLP3 J.2/J.3):
+           <span class="formula" data-fallback="PMI(x,y) = log2( f(x,y)·N / (f(x)·f(y)) )">\(\mathrm{PMI}(x,y) = \log_2 \frac{f(x,y)\, N}{f(x)\, f(y)}\)</span></p>
+      </div>
+      <div class="step" data-scene="cond1">
+        <span class="tag">4 · The PMI formula</span>
+        <h3>Massage it: p(x,y) = p(x|y)·p(y)</h3>
+        <p>Substitute the chain rule and one p(y) cancels:
+           <span class="formula" data-fallback="PMI(x,y) = log2( p(x|y) / p(x) )">\(\mathrm{PMI}(x,y) = \log_2 \frac{p(x\,|\,y)}{p(x)}\)</span>
+           Read it as: <b>“how much more likely is x, given that y happened, than x alone?”</b>
+           That conditional-probability reading builds all the intuition.</p>
+      </div>
+      <div class="step" data-scene="cond2">
+        <span class="tag">4 · The PMI formula</span>
+        <h3>…and symmetrically</h3>
+        <p>Using p(x,y) = p(y|x)·p(x) instead:
+           <span class="formula" data-fallback="PMI(x,y) = log2( p(y|x) / p(y) )">\(\mathrm{PMI}(x,y) = \log_2 \frac{p(y\,|\,x)}{p(y)}\)</span>
+           Same number, mirrored question: “how much does seeing x raise the odds of y?”
+           PMI(x,y) = PMI(y,x).</p>
+      </div>
+      <div class="step" data-scene="die">
+        <span class="tag">4 · The PMI formula</span>
+        <h3>Die example: P(5 | result &gt; 4) = 1/2, but P(5) = 1/6</h3>
+        <p>Roll a die. Seeing a 5 is rare (1/6), but <b>given the result is &gt; 4</b>, a 5 happens
+           half the time. So
+           <span class="formula" data-fallback="PMI = log2( (1/2) / (1/6) ) = log2(3) ≈ 1.58 bits">\(\mathrm{PMI} = \log_2 \tfrac{1/2}{1/6} = \log_2 3 \approx \mathbf{1.58}\ \text{bits}\)</span>
+           The needle on the gauge swings to +1.58 — a strong association between “5” and “&gt; 4”.</p>
+      </div>
+      <div class="step" data-scene="gauge">
+        <span class="tag">4 · The PMI formula</span>
+        <h3>A gauge for association — in bits</h3>
+        <p>Because we use <b>log₂</b>, PMI is measured in <b>bits</b>: each doubling of the ratio adds 1 bit.
+           The needle shows PMI(tea, strong) ≈ <b>+1.44</b> (association) and PMI(tea, powerful) ≈ <b>−0.91</b>
+           (repulsion), with 0 = independence in the middle.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 5 ================= -->
+  <section class="chapter" id="ch5">
+    <div class="sticky">
+      <svg id="viz5" viewBox="0 0 640 560" role="img" aria-label="PMI bars for toy-corpus word pairs"></svg>
+      <div class="caption" id="cap5"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="bars">
+        <span class="tag">5 · Reading a PMI value</span>
+        <h3>PMI bars for every observed pair</h3>
+        <p>Each bar is one pair’s PMI in bits (computed live from the corpus).
+           Right of the zero line = association, left = repulsion. Note how the top bar belongs to a
+           pair that occurred only <b>once</b>…</p>
+      </div>
+      <div class="step" data-scene="signs">
+        <span class="tag">5 · Reading a PMI value</span>
+        <h3>&gt; 0 association · = 0 independence · &lt; 0 repulsion</h3>
+        <p><b>PMI &gt; 0</b>: the pair occurs more than chance predicts.
+           <b>PMI = 0</b>: exactly independence (ratio 1). <b>PMI &lt; 0</b>: the pair avoids each other.
+           Since log₂ is used, the unit is <b>bits</b>: PMI = 1 means “twice as likely as chance”.</p>
+      </div>
+      <div class="step" data-scene="rare">
+        <span class="tag">5 · Reading a PMI value</span>
+        <h3>Caveat: rare events inflate PMI — and log(0) = −∞</h3>
+        <p><b>powerful × storm</b> happened once, yet tops the chart at <b>+3.09 bits</b>: with tiny counts,
+           the 1/p(x) factor in log(p(x|y)/p(x)) weighs heavily. And <b>storm × tea</b> never occurred:
+           log(0) = <b>−∞</b> (hatched bar). SLP3 warns: <b>negative PMI on rare events is unreliable</b>.</p>
+      </div>
+      <div class="step" data-scene="ppmi">
+        <span class="tag">5 · Reading a PMI value</span>
+        <h3>PPMI = max(PMI, 0)</h3>
+        <p>The standard fix (SLP3 J.4): clip negatives to zero — the <b>positive PMI</b>.
+           <span class="formula" data-fallback="PPMI(x,y) = max( PMI(x,y), 0 )">\(\mathrm{PPMI}(x,y) = \max\big(\mathrm{PMI}(x,y),\ 0\big)\)</span>
+           Watch the red bars flatten onto the zero line.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 6 ================= -->
+  <section class="chapter" id="ch6">
+    <div class="sticky">
+      <svg id="viz6" viewBox="0 0 640 560" role="img" aria-label="PMI / PPMI heatmap of the toy corpus"></svg>
+      <div class="caption" id="cap6"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="heat">
+        <span class="tag">6 · Worked example</span>
+        <h3>The full PMI matrix, computed live</h3>
+        <p>Every cell of the 10×10 matrix colored by its PMI value — red = repulsion, neutral = 0,
+           blue = association, all in bits. Zero-count cells are −∞ and drawn hatched.</p>
+      </div>
+      <div class="step" data-scene="top">
+        <span class="tag">6 · Worked example</span>
+        <h3>The strongest cells</h3>
+        <p>Labeled: <b>powerful × storm +3.09</b> (a once-seen pair — inflated), <b>powerful × computer +2.67</b>,
+           <b>powerful × engine +2.35</b>, and our hero <b>tea × strong +1.44</b> — while
+           <b>tea × powerful −0.91</b> sits on the red side.</p>
+      </div>
+      <div class="step" data-scene="clipped">
+        <span class="tag">6 · Worked example</span>
+        <h3>The PPMI matrix: negatives clipped</h3>
+        <p>Apply PPMI = max(PMI, 0) to every cell: the red cells fade to neutral. What remains is a
+           sparse, non-negative association matrix — exactly what NLP systems feed into SVD or use
+           as word-context features.</p>
+      </div>
+      <div class="step" data-scene="read">
+        <span class="tag">6 · Worked example</span>
+        <h3>Read it off</h3>
+        <p>The chip shows the live numbers: PMI(tea, strong) = <b>+1.44 bits</b>, PPMI(tea, powerful) = <b>0</b>,
+           PMI(storm, tea) = <b>−∞</b> → PPMI 0. A term–term matrix like this is the classic alternative
+           to tf-idf for finding collocations (Church &amp; Hanks 1989).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 7 ================= -->
+  <section class="chapter" id="ch7">
+    <div class="sticky">
+      <svg id="viz7" viewBox="0 0 640 560" role="img" aria-label="Event bubbles with running weighted average equal to MI"></svg>
+      <div class="caption" id="cap7"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="bubbles">
+        <span class="tag">7 · PMI vs MI</span>
+        <h3>Every observed pair is an event</h3>
+        <p>Each bubble is one pair (x, y) that occurred: <b>area ∝ p(x,y)</b> (its joint probability)
+           and <b>color = sign of PMI</b> (blue = association, red = repulsion). Rare pairs are small bubbles.</p>
+      </div>
+      <div class="step" data-scene="expect">
+        <span class="tag">7 · PMI vs MI</span>
+        <h3>MI = E[PMI] = Σ p(x,y)·PMI(x,y)</h3>
+        <p><b>Mutual information</b> (SLP3 J.1) is just the <b>expectation of PMI</b> under the joint
+           distribution:
+           <span class="formula" data-fallback="I(X,Y) = Σ_x Σ_y p(x,y) · log2( p(x,y) / (p(x)p(y)) ) = E[PMI]">\(I(X,Y) = \textstyle\sum_x \sum_y p(x,y)\ \log_2 \tfrac{p(x,y)}{p(x)p(y)} = \mathbb{E}[\mathrm{PMI}]\)</span>
+           Scroll and the bubbles are absorbed one by one into the running sum…</p>
+      </div>
+      <div class="step" data-scene="running">
+        <span class="tag">7 · PMI vs MI</span>
+        <h3>Watch the running weighted average converge</h3>
+        <p>The right-hand readout accumulates p(x,y)·PMI(x,y) bubble by bubble. Positive and negative
+           contributions mix, and the sum settles at the MI of the whole joint distribution.</p>
+      </div>
+      <div class="step" data-scene="result">
+        <span class="tag">7 · PMI vs MI</span>
+        <h3>MI ≈ 1.31 bits for our toy corpus</h3>
+        <p>PMI is a <b>per-event</b> score (one pair, can be negative); MI is the <b>average</b> of PMI over
+           all events — and an average of log-ratios against the independence baseline is always ≥ 0.
+           MI answers “how many bits, on average, does seeing one word tell me about the other?”</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 8 ================= -->
+  <section class="chapter" id="ch8">
+    <div class="sticky">
+      <svg id="viz8" viewBox="0 0 640 560" role="img" aria-label="Pipeline from corpus to PPMI matrix to embeddings"></svg>
+      <div class="caption" id="cap8"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="pipeline">
+        <span class="tag">8 · PMI in NLP practice</span>
+        <h3>From corpus to PPMI matrix</h3>
+        <p>The whole pipeline in three panels: <b>toy corpus</b> → windowed <b>count matrix F</b>
+           → normalized <b>PPMI matrix</b>. Everything on this page is exactly this pipeline,
+           computed in your browser.</p>
+      </div>
+      <div class="step" data-scene="code">
+        <span class="tag">8 · PMI in NLP practice</span>
+        <h3>Build it in Python with Counter + numpy</h3>
+        <p>The same pipeline in a few lines — the standard way to build a term–term matrix:
+<pre class="code"><span class="kw">from</span> collections <span class="kw">import</span> Counter
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+WINDOW = <span class="var">3</span>
+tokens = [w <span class="kw">for</span> sent <span class="kw">in</span> CORPUS <span class="kw">for</span> w <span class="kw">in</span> sent.lower().split()]
+vocab  = sorted({w <span class="kw">for</span> w <span class="kw">in</span> tokens <span class="kw">if</span> w <span class="kw">in</span> VOCAB})
+F = np.<span class="fn">zeros</span>((<span class="fn">len</span>(vocab), <span class="fn">len</span>(vocab)))
+<span class="kw">for</span> pos, w <span class="kw">in</span> <span class="fn">enumerate</span>(tokens):
+    <span class="kw">for</span> q <span class="kw">in</span> <span class="fn">range</span>(pos - WINDOW, pos + WINDOW + <span class="var">1</span>):  <span class="cm"># symmetric window</span>
+        <span class="kw">if</span> q != pos <span class="kw">and</span> <span class="var">0</span> <= q < <span class="fn">len</span>(tokens) <span class="kw">and</span> tokens[q] <span class="kw">in</span> vocab:
+            F[vocab.<span class="fn">index</span>(w), vocab.<span class="fn">index</span>(tokens[q])] += <span class="var">1</span>
+
+N  = F.<span class="fn">sum</span>()                    <span class="cm"># total co-occurrence pairs</span>
+P  = F / N                      <span class="cm"># joint probabilities p(x, y)</span>
+px = P.<span class="fn">sum</span>(axis=<span class="var">1</span>)             <span class="cm"># marginals p(x)</span>
+PMI  = np.<span class="fn">where</span>(F > <span class="var">0</span>, np.<span class="fn">log2</span>(P / np.<span class="fn">outer</span>(px, px)), -np.inf)
+PPMI = np.<span class="fn">maximum</span>(PMI, <span class="var">0</span>)       <span class="cm"># clip negatives (SLP3 J.4)</span></pre>
+        </p>
+      </div>
+      <div class="step" data-scene="embed">
+        <span class="tag">8 · PMI in NLP practice</span>
+        <h3>Word embeddings implicitly factorize (P)PMI</h3>
+        <p>Levy &amp; Goldberg (2014) showed that <b>SGNS / word2vec</b>’s skip-gram objective is approximately
+           an implicit factorization of the shifted PMI matrix — so the dots on the right are what
+           “strong” and “tea” become: near each other, far from “storm”. Variants of PMI used in practice:
+           <b>PPMI</b>, <b>conditional PMI</b> (C-PMI), and <b>significance-adjusted PMI</b> (Hoeffding bounds).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 9 ================= -->
+  <section class="chapter" id="ch9">
+    <div class="sticky">
+      <svg id="viz9" viewBox="0 0 640 560" role="img" aria-label="Recap of the PMI formulas"></svg>
+      <div class="caption" id="cap9"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="formulas">
+        <span class="tag">9 · Recap</span>
+        <h3>The three formulas</h3>
+        <p>
+          <span class="formula" data-fallback="PMI(x,y) = log2( p(x,y) / (p(x)p(y)) ) = log2( p(x|y) / p(x) )">\(\mathrm{PMI}(x,y) = \log_2 \tfrac{p(x,y)}{p(x)p(y)} = \log_2 \tfrac{p(x|y)}{p(x)}\)</span>
+          <span class="formula" data-fallback="PPMI(x,y) = max(PMI(x,y), 0)">\(\mathrm{PPMI}(x,y) = \max(\mathrm{PMI}(x,y), 0)\)</span>
+          <span class="formula" data-fallback="I(X,Y) = Σ p(x,y) PMI(x,y) = E[PMI] ≥ 0">\(I(X,Y) = \textstyle\sum_{x,y} p(x,y)\,\mathrm{PMI}(x,y) = \mathbb{E}[\mathrm{PMI}] \ge 0\)</span>
+        </p>
+      </div>
+      <div class="step" data-scene="caveats">
+        <span class="tag">9 · Recap</span>
+        <h3>Caveats</h3>
+        <p><b>Rare words inflate PMI</b> (small p(x) makes 1/p(x) big) — and unseen pairs give log(0) = −∞,
+           so negative PMI on rare events is unreliable: use <b>PPMI</b>. Estimates get more reliable with
+           <b>bigger corpora</b>. PMI is the classic alternative to tf-idf for collocations
+           (Church &amp; Hanks 1989) and the implicit target of word2vec-style embeddings.</p>
+      </div>
+      <div class="step" data-scene="summary">
+        <span class="tag">9 · Recap</span>
+        <h3>When to use PMI</h3>
+        <p>Use it to score <b>word–word or word–context association</b>: collocation extraction,
+           term–term / term–document matrices, feature weighting in classification, and as the theoretical
+           lens on embeddings. Watch the sign, the units (bits), and the rarity of the events.</p>
+        <div class="kv">
+          <b>PMI = log2(obs/exp)</b><b>PMI = log2(p(x|y)/p(x))</b><b>PPMI = max(PMI, 0)</b>
+          <b>MI = E[PMI] ≥ 0</b><b>units: bits (log2)</b><b>p_ij = f_ij/N</b>
+          <b>E[f_ij] = f_i·f_j/N</b><b>Church &amp; Hanks 1989</b><b>Levy &amp; Goldberg 2014</b>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p><b>Pointwise Mutual Information — a visual introduction.</b>
+     Part of the <i>Introduction to ML for NLP</i> course materials.
+     Continue with the hands-on exercise:
+     <a href="https://github.com/liadmagen/NLP-Course/blob/master/exercises_notebooks/02_Language_Identification_with_Decision_Tree.ipynb">02 · Language Identification with a Decision Tree (notebook)</a>.</p>
+  <p>Sources: Eran Raviv, <a href="https://eranraviv.com/understanding-pointwise-mutual-information-in-statistics/">Understanding Pointwise Mutual Information in Statistics</a>;
+     Jurafsky &amp; Martin, <a href="https://web.stanford.edu/~jurafsky/slp3/J.pdf">Speech and Language Processing (3rd ed. draft), ch. J</a>;
+     <a href="https://www.emergentmind.com/topics/pointwise-mutual-information-pmi">Emergent Mind — Pointwise Mutual Information (PMI)</a>.
+     All counts, probabilities, PMI/PPMI values and MI on this page are generated and computed locally in your
+     browser by <code>pmi-math.js</code> (unit-tested with <code>pmi-math.test.js</code>).
+     Open this file directly — no server needed.
+     Formulas are rendered with KaTeX from a CDN when online; offline they fall back to plain text.</p>
+</footer>
+
+<script src="pmi-math.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
