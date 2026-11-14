@@ -957,7 +957,7 @@
         }
         L.forEach((t) => { t.textContent = ''; t.setAttribute('font-weight', 400); });
         L[0].textContent = 'depth ' + d + ': ' + ML.leafCount(tree) + ' regions'; L[0].setAttribute('font-weight', 700);
-        L[1].textContent = (M ? 'right: ' : 'training examples right: ') + pct(CTR[d]);
+        L[1].textContent = (M ? 'correct: ' : 'training examples right: ') + pct(CTR[d]);
         if (d > DEPTH_FULL) L[2].textContent = M ? 'stopped at depth ' + ML.treeDepth(tree) : 'the tree stopped at depth ' + ML.treeDepth(tree) + ': every region is pure';
         if (d > DEPTH_FULL && M) L[3].textContent = 'every region is pure';
         if (stage === 2) L[M ? 2 : 3].textContent = 'all cuts are axis-parallel';
@@ -1033,7 +1033,8 @@
         show(freshG, stage >= 2);
         trainL.style.display = trainLab.style.display = visTrain ? '' : 'none';
         freshL.style.display = freshLab.style.display = visFresh ? '' : 'none';
-        trainM.forEach((c) => { c.style.display = visTrain ? '' : 'none'; });
+        trainM.forEach((c, i) => { c.style.display = visTrain || i + 1 === d ? '' : 'none'; }); /* step 1: just the dot of the current depth */
+        trainLab.style.display = '';
         freshM.forEach((c) => { c.style.display = visFresh ? '' : 'none'; });
         show(bestMk, stage === 3);
         curV.setAttribute('x1', ch.sx(d)); curV.setAttribute('x2', ch.sx(d));
