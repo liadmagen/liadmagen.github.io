@@ -34,10 +34,11 @@
   .hero .lead{max-width:60ch;color:var(--muted);font-size:1.12rem;margin:.3rem 0}
   .flow{display:flex;flex-direction:column;align-items:center;gap:.25rem;margin:1.5rem 0 1rem;
     background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1rem 1.3rem;
-    box-shadow:0 10px 30px rgba(30,40,60,.07);font-size:1rem;max-width:560px;width:100%}
+    box-shadow:0 10px 30px rgba(30,40,60,.07);font-size:1rem;max-width:660px;width:100%}
   .flow .q{background:#efecfb;border:2px solid var(--accent);border-radius:10px;padding:.35rem .8rem;font-weight:600}
   .flow .branches{display:flex;gap:1.2rem;width:100%;justify-content:center;flex-wrap:wrap}
-  .flow .br{display:flex;flex-direction:column;align-items:center;gap:.25rem;flex:1;min-width:150px}
+  .flow .br{display:flex;flex-direction:column;align-items:center;gap:.25rem;flex:1;min-width:110px}
+  .flow .br.wide{flex:2}
   .flow .yn{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
   .flow .leaf{border-radius:10px;padding:.3rem .8rem;font-weight:700;border:2px solid}
   .flow .leaf.b{background:var(--blue-soft);border-color:var(--blue);color:#154f98}
@@ -77,7 +78,7 @@
   .controls input[type=range]{width:min(240px,50vw);accent-color:var(--accent)}
   .controls .out{font-family:var(--mono);color:var(--ink);min-width:6ch}
   :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-  .steps{display:flex;flex-direction:column;gap:55vh;padding:52vh 0 55vh} /* the figure pins before the first step becomes active */
+  .steps{display:flex;flex-direction:column;gap:55vh;padding:52vh 0 120vh} /* the figure pins before the first step becomes active, and stays pinned while a control below it is brought into view */
   .step{background:var(--card);border:1px solid var(--line);border-radius:14px;
     padding:1.2rem 1.35rem;box-shadow:0 6px 18px rgba(30,40,60,.06);
     opacity:.25;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease}
@@ -168,7 +169,7 @@
     <span class="q">Does the text contain the letter ß?</span>
     <div class="branches">
       <div class="br"><span class="yn">yes</span><span class="leaf o">German</span></div>
-      <div class="br"><span class="yn">no</span><span class="q">Is the average word length above 5?</span>
+      <div class="br wide"><span class="yn">no</span><span class="q">Is the average word length above 5?</span>
         <div class="branches"><div class="br"><span class="yn">yes</span><span class="leaf o">German?</span></div>
         <div class="br"><span class="yn">no</span><span class="leaf b">English?</span></div></div></div>
     </div>
@@ -303,7 +304,7 @@
         <span class="tag">3 · How mixed is a node?</span>
         <h3>Another ruler: entropy <span class="opt">optional</span></h3>
         <p>Information theory counts in <b>bits</b>: roughly, how many yes/no questions you still need to name the label.
-           Whole set: {{rootH}} bits; coin flip: 1 bit; pure: 0. The two hills have the same shape, so they usually
+           Whole set: {{rootH}} bits; coin flip: 1 bit; pure: 0. The two hills have a similar shape, so they usually
            choose the same questions. We keep Gini.
            <span class="formula">\(H = -\sum_k p_k \log_2 p_k\)</span></p>
       </div>
@@ -346,7 +347,7 @@
       <div class="step" data-scene="stop">
         <span class="tag">4 · Finding the best question</span>
         <h3>When does it stop?</h3>
-        <p>A branch stops when it is <b>pure</b>, when it reaches the <b>depth limit</b> (here three questions in a row),
+        <p>A branch stops when it is <b>pure</b>, when it reaches the <b>depth limit</b> (here {{limit}} questions in a row),
            or when too few examples are left. Both reasons show up here: pure leaves, and one mixed leaf
            ({{stopB}} blue, {{stopO}} orange) cut off by the depth limit.</p>
       </div>
@@ -404,13 +405,13 @@
       <div class="step" data-scene="noise">
         <span class="tag">6 · Overfitting</span>
         <h3>Real data is noisy</h3>
-        <p>Now four examples (ringed) carry a label that contradicts their neighbourhood: a typing slip, a borderline case.
-           A shallow tree (depth 2) simply ignores them and gets {{shTrain}} of the training examples right.</p>
+        <p>Now {{nNoisy}} examples (ringed) carry a label that contradicts their neighbourhood: a typing slip, a borderline case.
+           A shallow tree (depth {{shDepth}}) simply ignores them and gets {{shTrain}} of the training examples right.</p>
       </div>
       <div class="step" data-scene="deep">
         <span class="tag">6 · Overfitting</span>
         <h3>A deep tree memorises</h3>
-        <p>Depth 8 keeps asking questions until every training example is right: {{deepTrain}}. See the little islands around the
+        <p>Depth {{deepDepth}} keeps asking questions until every training example is right: {{deepTrain}}. See the little islands around the
            ringed examples? The tree has learned accidents, not the pattern: {{leavesDeep}} regions instead of {{leavesShallow}}.</p>
       </div>
       <div class="step" data-scene="fresh">
@@ -456,7 +457,7 @@
         <span class="tag">7 · Random forest</span>
         <h3>Many different trees <span class="opt">optional</span></h3>
         <p>Each tree sees its own sample, and at each question it may look at only one randomly chosen feature
-           (we have just two, so “a random subset” means one). Five trees, five different boundaries.</p>
+           (we have just two, so “a random subset” means one). {{NMini}} trees, {{nMini}} different boundaries.</p>
       </div>
       <div class="step" data-scene="vote">
         <span class="tag">7 · Random forest</span>
@@ -483,7 +484,7 @@
         <h3>Hard cases <span class="opt">optional</span></h3>
         <p>Boosting also combines many small trees, but <b>one after another</b>, each fixing the last one's mistakes.
            One feature on a line: <span class="legend-b">blue = −1</span>, <span class="legend-o">orange = +1</span>.
-           Two examples (ringed) sit on the wrong side. A <b>stump</b> is a tree with a single question.</p>
+           {{NOut}} examples (ringed) sit on the wrong side. A <b>stump</b> is a tree with a single question.</p>
       </div>
       <div class="step" data-scene="round1">
         <span class="tag">8 · Going further: boosting</span>

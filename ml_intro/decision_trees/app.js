@@ -90,7 +90,8 @@
   const ROOT = ML.bestSplit(D.X, D.y, IDX, 'gini');
   const BEST_H = ML.bestSplit(D.X, D.y, IDX, 'gini', [1]);
   const Q5 = ML.splitStats(D.X, D.y, IDX, 0, 5, 'gini');
-  const T2 = CT[2], T3 = CT[3];
+  const LIMIT = 3, SHALLOW = 2, DEEP = 8, NMINI = 5;
+  const T2 = CT[2], T3 = CT[LIMIT];
   const WALK = ML.predict(T2, ML.PROBE);
   const NODE_ROOT = CT[2], NODE_LEFT = CT[2].left, NODE_RIGHT = CT[2].right;
   const STOP_LEAF = ML.treeNodes(T3).filter((n) => n.leaf && n.reason === 'depth')[0] || { counts: [0, 0] };
@@ -101,6 +102,9 @@
   const FOREST_FRESH = ML.forestAccuracy(FOREST, FR.X, FR.y);
   const ADA = ML.adaboostTrain1D(LINE.xs, LINE.ys, 20), ROUNDS = ADA.history.length;
   const pBlue = NODE_ROOT.counts[0] / NODE_ROOT.n, pOrange = NODE_ROOT.counts[1] / NODE_ROOT.n;
+
+  const NUMW = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+  const cap1 = (w) => w.charAt(0).toUpperCase() + w.slice(1);
 
   /* ------------------------------------------------------------------ prose placeholders {{key}} */
   function val(spec) {
@@ -154,6 +158,13 @@
       case 'eps1': out = f2(ADA.history[0].err); break;
       case 'alpha1': out = f2(ADA.history[0].alpha); break;
       case 'rounds': out = String(ROUNDS); break;
+      case 'limit': out = NUMW[LIMIT]; break;
+      case 'shDepth': out = String(SHALLOW); break;
+      case 'deepDepth': out = String(DEEP); break;
+      case 'nNoisy': out = NUMW[NZ.noisy.length]; break;
+      case 'nMini': out = NUMW[NMINI]; break;
+      case 'NMini': out = cap1(NUMW[NMINI]); break;
+      case 'NOut': out = cap1(NUMW[LINE.outliers.length]); break;
       default: console.warn('unknown placeholder', spec); out = '?';
     }
     return out;
@@ -308,7 +319,7 @@
      Mobile: plane on the left, free area on the right, readouts under the plane. */
   function areas(M) {
     if (!M) return { plane: { x: 38, y: 34, s: 300 }, free: { x: 360, y: 22, w: 272, h: 346 }, panel: { x: 16, y: 396, w: 608, h: 152 } };
-    return { plane: { x: 28, y: 26, s: 138 }, free: { x: 176, y: 6, w: 200, h: 318 }, panel: { x: 6, y: 206, w: 166, h: 118 } };
+    return { plane: { x: 32, y: 26, s: 136 }, free: { x: 178, y: 6, w: 198, h: 318 }, panel: { x: 6, y: 206, w: 168, h: 118 } };
   }
 
   /* text made of coloured pieces: strings are plain, [text, colour, bold] arrays are tspans */
@@ -625,7 +636,7 @@
     const cx = pl.sx(ML.PROBE[0]), cy = pl.sy(ML.PROBE[1]);
     const ring = el('circle', { cx: cx, cy: cy, r: M ? 8 : 10, fill: 'none', stroke: C.ink, 'stroke-width': 3 }, probeG);
     const dot = el('circle', { cx: cx, cy: cy, r: M ? 3 : 4, fill: C.ink }, probeG);
-    const plab = T(probeG, cx + (M ? 10 : 13), cy - (M ? 8 : 10), 'new example', M ? 10 : 11.5, C.ink, { 'font-weight': 700, 'paint-order': 'stroke', stroke: '#fff', 'stroke-width': 3 });
+    const plab = T(probeG, A.plane.x + A.plane.s / 2, A.plane.y - (M ? 8 : 10), 'black ring = a new example', M ? 10.5 : 12, C.ink, { 'font-weight': 700, 'text-anchor': 'middle' });
     const panel = el('g', {}, svg);
     const L = readout(panel, A, M, 4);
     function region(k) {
@@ -655,9 +666,9 @@
           if (tr.edges[n.id]) styleEdge(tr.edges[n.id], pi !== -1 && pi <= stage, false);
         });
         if (stage >= 1) setRect(shade, region(Math.min(stage, 2))); else { shade.setAttribute('width', 0); shade.setAttribute('height', 0); }
-        const appear = stage === 0 ? clamp((q - 0.1) / 0.5, 0, 1) : 1;
+        const appear = stage === 0 ? 0.55 + 0.45 * clamp(q / 0.4, 0, 1) : 1;
         ring.setAttribute('r', (M ? 8 : 10) * ease(appear)); ring.setAttribute('opacity', appear);
-        dot.setAttribute('r', (M ? 3 : 4) * ease(appear)); plab.setAttribute('opacity', appear);
+        dot.setAttribute('r', (M ? 3 : 4) * ease(appear)); plab.setAttribute('opacity', appear > 0.5 ? 1 : 0);
         const pr = ML.PROBE;
         L.forEach((t) => { t.textContent = ''; });
         if (stage >= 1) L[0].textContent = M ? '1. feature 1: ' + pr[0].toFixed(1) + ' ≤ ' + f2(path[0].threshold) + '? yes' : '1. feature 1 = ' + pr[0].toFixed(1) + ', at most ' + f2(path[0].threshold) + '?  yes, go left';
@@ -897,7 +908,7 @@
             L[3].textContent = M ? 'right side: pure, a leaf' : 'the right side is pure: a leaf';
           } else {
             L[0].textContent = 'stop when the node is pure,'; L[0].setAttribute('font-weight', 700);
-            L[1].textContent = M ? '■ limit: depth 3 reached,' : 'or at the depth limit (3),';
+            if (M) setRich(L[1], [['■ limit', C.accent, 1], ': depth ' + LIMIT + ' reached,']); else L[1].textContent = 'or at the depth limit (' + LIMIT + '),';
             L[2].textContent = 'or when too few are left.';
             L[3].textContent = ML.leafCount(tree) + ' leaves, ' + pct(CTR[3]) + ' of training right';
           }
@@ -1000,9 +1011,9 @@
     const panel = el('g', {}, svg);
     const L = readout(panel, A, M, 4);
     let shown = -1;
-    const stepDepth = [2, 8, 8, BEST_DEPTH];
+    const stepDepth = [SHALLOW, DEEP, DEEP, BEST_DEPTH];
     const caps = [
-      'Four ringed examples contradict their neighbourhood. A shallow tree ignores them.',
+      cap1(NUMW[NZ.noisy.length]) + ' ringed examples contradict their neighbourhood. A shallow tree ignores them.',
       'The deep tree carves islands around the ringed examples: it memorises the noise.',
       'Hollow shapes are fresh examples the trees never saw.',
       'Training accuracy only rises with depth; fresh accuracy peaks, then falls.'
@@ -1062,11 +1073,11 @@
     const histBars = [];
     const hx = A.free.x + (M ? 34 : 36), hy = A.free.y + (M ? 24 : 34), hw = A.free.w - (M ? 46 : 52), hh = M ? 170 : A.free.h - 130;
     const hch = makeChart(histG, hx, hy, hw, hh, [-0.5, 4.5], [0, 30], M, { xticks: [0, 1, 2, 3, 4], xfmt: (v) => (v === 4 ? '4+' : String(v)), yticks: [0, 10, 20, 30], xlabel: 'times drawn', ylabel: 'examples', ylabelDx: M ? 26 : 30 });
-    T(histG, hx + hw / 2, hy - (M ? 7 : 10), 'how often each example was drawn', fs - 0.5, C.muted, { 'text-anchor': 'middle', 'font-weight': 700 });
+    T(histG, hx + hw / 2, hy - (M ? 7 : 10), M ? 'draws per example' : 'how often each example was drawn', fs - 0.5, C.muted, { 'text-anchor': 'middle', 'font-weight': 700 });
     for (let k = 0; k < 5; k++) histBars.push({ r: el('rect', { fill: k === 0 ? C.grey : C.blue }, histG), t: T(histG, 0, 0, '', fs - 1, C.ink, { 'text-anchor': 'middle', 'font-weight': 700 }) });
     /* stage 1: five small planes with the boundary of each tree */
     const ncols = M ? 3 : 2, ms = M ? 58 : 84, mgapX = (A.free.w - ncols * ms) / (ncols - 1), mrow = ms + (M ? 34 : 40);
-    FOREST.trees.slice(0, 5).forEach((tree, i) => {
+    FOREST.trees.slice(0, NMINI).forEach((tree, i) => {
       const x = A.free.x + (i % ncols) * (ms + mgapX), y = A.free.y + (M ? 22 : 26) + Math.floor(i / ncols) * mrow;
       const g = el('g', {}, miniG);
       const mp = makePlane(g, x, y, ms, M, { noTitles: true });
@@ -1085,7 +1096,7 @@
     const accMark = el('circle', { r: M ? 5 : 6.5, fill: C.teal, stroke: '#fff', 'stroke-width': 2 }, accG);
     const caps = [
       'Each tree gets its own bootstrap sample: some examples twice or more, some not at all.',
-      'Five trees from five samples: similar, but not identical.',
+      cap1(NUMW[NMINI]) + ' trees from ' + NUMW[NMINI] + ' samples: similar, but not identical.',
       'Majority vote of the first k trees; shade = how one-sided the vote is.'
     ];
     return {
@@ -1129,10 +1140,10 @@
         }
         if (stage === 1) {
           cutG.innerHTML = '';
-          FOREST.trees.slice(0, 5).forEach((tree) => drawCuts(cutG, tree, pl, { w: 1.6, opacity: 0.35 }));
-          L[0].textContent = 'five trees, five samples'; L[0].setAttribute('font-weight', 700);
+          FOREST.trees.slice(0, NMINI).forEach((tree) => drawCuts(cutG, tree, pl, { w: 1.6, opacity: 0.35 }));
+          L[0].textContent = NUMW[NMINI] + ' trees, ' + NUMW[NMINI] + ' samples'; L[0].setAttribute('font-weight', 700);
           L[1].textContent = M ? 'one random feature per question' : 'each question looks at one random feature';
-          L[2].textContent = M ? 'plane: all five sets of cuts' : 'on the plane: all five sets of cuts at once';
+          L[2].textContent = M ? 'plane: all sets of cuts' : 'on the plane: all the sets of cuts at once';
         }
         if (stage === 2) {
           cells.forEach((c) => {
@@ -1191,11 +1202,11 @@
     T(fG, fx + 6, fch.sy(-1) - 5, '−1 side', fs - 1, C.blue, { 'font-weight': 700 });
     /* stages 1 and 2: the weight of every example as a bar, aligned with the points above */
     const wG = el('g', {}, svg);
-    const wch = makeChart(wG, fx, fy, fw, fh, [0, 10], [0, 0.5], M, { xticks: [0, 2, 4, 6, 8, 10], yticks: [0, 0.25, 0.5], xlabel: 'feature x', ylabel: 'weight', yfmt: (v) => Math.round(v * 100) + '%', ylabelDx: M ? 30 : 38 });
+    const wch = makeChart(wG, fx, fy, fw, fh, [0, 10], [0, 0.5], M, { xticks: [0, 2, 4, 6, 8, 10], yticks: [0, 0.25, 0.5], xlabel: 'feature x', ylabel: 'weight', yfmt: (v) => Math.round(v * 100) + '%', ylabelDx: M ? 27 : 38 });
     const wBars = LINE.xs.map((x, i) => el('rect', { fill: LINE.ys[i] === 1 ? C.orange : C.blue, 'fill-opacity': 0.85, width: M ? 9 : 14 }, wG));
     const wTxt = T(wG, fx + fw - 4, fy + (M ? 12 : 16), '', fs - 0.5, C.ink, { 'text-anchor': 'end', 'font-weight': 700 });
     const caps = [
-      'One feature on a line. Two ringed examples sit on the wrong side.',
+      'One feature on a line. ' + cap1(NUMW[LINE.outliers.length]) + ' ringed examples sit on the wrong side.',
       'Round 1: the best single question (a stump) and the examples it gets wrong (ringed).',
       'After the update the mistakes are heavier (bigger shapes).',
       ''
@@ -1261,10 +1272,10 @@
     /* the recap text lives in ordinary HTML cards (normal flow, so it can never overlap);
        the svg above only carries a small flow diagram */
     const svg = C0.svg, W = C0.W, M = C0.M;
-    const H9 = M ? 74 : 150;
+    const H9 = M ? 62 : 150;
     svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H9);
     const items = [['text', 'a sentence'], ['numbers', 'measurements'], ['tree', 'questions'], ['language', 'the answer']];
-    const cy = M ? 26 : 56, r = M ? 15 : 28, x0 = W * 0.13, dx = W * 0.245;
+    const cy = M ? 22 : 56, r = M ? 15 : 28, x0 = W * 0.13, dx = W * 0.245;
     items.forEach((it, i) => {
       const x = x0 + i * dx;
       if (i < 3) {
