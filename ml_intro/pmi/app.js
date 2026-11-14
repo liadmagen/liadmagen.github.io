@@ -1,954 +1,1175 @@
-/* Scroll-driven visualizations for the PMI tutorial.
-   All math comes from pmi-math.js (window.PMIM). No external libraries. */
+/* Scroll-driven visual introduction to PMI.
+   All numbers come from pmi-math.js (window.PMIM); all formulas are rendered with the
+   vendored KaTeX. No other libraries, no build step. */
 (function () {
   'use strict';
-  var PMI = window.PMIM;
-  if (!PMI) return;
+  const PM = window.PMIM;
+  if (!PM) { console.error('pmi-math.js did not load'); return; }
 
-  var NS = 'http://www.w3.org/2000/svg';
+  /* ------------------------------------------------------------------ helpers */
+  const NS = 'http://www.w3.org/2000/svg';
   function el(tag, attrs, parent) {
-    var n = document.createElementNS(NS, tag);
-    if (attrs) for (var k in attrs) n.setAttribute(k, attrs[k]);
+    const n = document.createElementNS(NS, tag);
+    if (attrs) for (const k in attrs) n.setAttribute(k, attrs[k]);
     if (parent) parent.appendChild(n);
     return n;
   }
-  function txt(parent, x, y, str, attrs) {
-    var t = el('text', attrs || {}, parent);
-    t.setAttribute('x', x); t.setAttribute('y', y);
+  function T(parent, x, y, str, size, fill, o) {
+    const t = el('text', Object.assign({ x: x, y: y, 'font-size': size, fill: fill || C.ink }, o || {}), parent);
     t.textContent = str;
     return t;
   }
-  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-  function ease(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
-  function hexRgb(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+  const hexRgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
   function mix(c1, c2, t) {
-    var a = hexRgb(c1), b = hexRgb(c2);
+    const a = hexRgb(c1), b = hexRgb(c2);
     t = clamp(t, 0, 1);
     return 'rgb(' + Math.round(a[0] + (b[0] - a[0]) * t) + ',' + Math.round(a[1] + (b[1] - a[1]) * t) + ',' + Math.round(a[2] + (b[2] - a[2]) * t) + ')';
   }
-
-  /* KaTeX rendering with plain-text fallback (works offline without the CDN) */
-  function setMath(d, tex, fallback) {
-    if (window.katex) {
-      try { window.katex.render(tex, d, { displayMode: false, throwOnError: false }); return; } catch (e) { /* fall through */ }
-    }
-    d.textContent = fallback;
-    d.classList.add('nomath');
+  /* staggered reveal: item i of n, driven by q in [0,1]; the first items are visible at q=0 */
+  const rev = (q, i, n) => clamp((0.3 + q * 1.2) * (n + 1) - i, 0, 1);
+  const MINUS = '−';
+  const show = (g, on) => { g.style.display = on ? '' : 'none'; };
+  /* controls stay in place (no layout jump); they are just disabled and dimmed when not relevant */
+  function ctlState(ctl, enabled) {
+    ctl.classList.add('on');
+    ctl.classList.toggle('off', !enabled);
+    Array.prototype.forEach.call(ctl.querySelectorAll('input,button,select'), (n) => { n.disabled = !enabled; });
   }
-  function mathBox(svg, x, y, w, h, cls) {
-    var fo = el('foreignObject', { x: x, y: y, width: w, height: h }, svg);
-    var d = document.createElement('div');
-    d.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
-    d.className = 'math' + (cls ? ' ' + cls : '');
+  function sgn(v, d) {
+    if (v === -Infinity) return MINUS + '∞';
+    if (Number.isNaN(v)) return 'n/a';
+    const s = Math.abs(v).toFixed(d === undefined ? 2 : d);
+    return (v > 0 ? '+' : v < 0 && Number(s) !== 0 ? MINUS : '') + s;
+  }
+  const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* palette: blue = seen / more than chance, orange = less than chance, grey = chance */
+  const C = {
+    ink: '#1d2733', muted: '#55636f', line: '#e5e1d8', card: '#ffffff',
+    blue: '#1f6fd1', blueSoft: '#dbe8fa', orange: '#d9730d', orangeSoft: '#fbe6d0',
+    grey: '#7d8894', greySoft: '#e9e6dd', neutral: '#f4f2ec', teal: '#0f8a8a', accent: '#6d5bd0'
+  };
+
+  /* ------------------------------------------------------------------ KaTeX */
+  function renderMath(root) {
+    if (typeof window.renderMathInElement === 'function') {
+      try {
+        window.renderMathInElement(root, {
+          delimiters: [{ left: '\\(', right: '\\)', display: false }, { left: '\\[', right: '\\]', display: true }],
+          throwOnError: false
+        });
+      } catch (e) { console.error('KaTeX auto-render failed', e); }
+    } else console.error('KaTeX auto-render is not available');
+  }
+  function setTex(node, src) {
+    if (window.katex) {
+      try { window.katex.render(src, node, { displayMode: false, throwOnError: false }); return; } catch (e) { console.error('KaTeX render failed', e); }
+    }
+    node.textContent = src;
+  }
+  function mathBox(parent, x, y, w, h, cls) {
+    const fo = el('foreignObject', { x: x, y: y, width: w, height: h }, parent);
+    const d = document.createElement('div');
+    d.className = 'svgmath ' + (cls || '');
     fo.appendChild(d);
     return d;
   }
-  function renderStaticMath() {
-    var nodes = document.querySelectorAll('.formula');
-    Array.prototype.forEach.call(nodes, function (n) {
-      var tex = n.textContent.trim();
-      if (window.katex && window.renderMathInElement) {
-        try {
-          window.renderMathInElement(n, {
-            delimiters: [{ left: '\\(', right: '\\)', display: false }, { left: '\\[', right: '\\]', display: true }],
-            throwOnError: false
-          });
-          return;
-        } catch (e) { /* fall through to fallback */ }
+
+  /* ------------------------------------------------------------------ data (all from pmi-math.js) */
+  const CO = PM.buildCooccurrence();
+  const VOCAB = CO.vocab, F = CO.F, N = CO.N, IDX = CO.index;
+  const RS = PM.rowSums(F);
+  const PMI_M = PM.pmiMatrix(F);
+  const PAIRS_P = PM.topPairs(F, VOCAB, 0, 'pmi');
+  const PAIRS_C = PM.topPairs(F, VOCAB, 0, 'count');
+  const MIN2 = PM.topPairs(F, VOCAB, 0, 'count', 2);
+  const MI = PM.mutualInformation(F);
+  const DIE = PM.dieExample();
+  const stat = (a, b) => PM.pairStats(F, VOCAB, IDX[a], IDX[b]);
+  const TS = stat('tea', 'strong'), TP = stat('tea', 'powerful'), TC = stat('tea', 'coffee');
+  const SHUF_T = 300;
+  const TR = (function () {
+    const rng = PM.mulberry32(11), arrs = [], cnts = [];
+    for (let t = 0; t < SHUF_T; t++) {
+      const a = PM.shuffledPairs(F, rng);
+      arrs.push(a); cnts.push(PM.countPairIn(a, IDX.tea, IDX.strong));
+    }
+    return { arrs: arrs, cnts: cnts };
+  })();
+  /* smoothing: the rarer word of the pair is the "context" word */
+  function smoothed(a, b) {
+    let x = IDX[a], y = IDX[b];
+    if (RS[x] < RS[y]) { const t = x; x = y; y = t; }
+    return PM.pmiSmoothed(F, x, y, 0.75);
+  }
+  const pairName = (p) => p.a + ' × ' + p.b;
+  function pairTip(p) {
+    return '<b>' + pairName(p) + '</b><br>seen ' + p.f + ' · expected ' + p.expected.toFixed(2) +
+      '<br>PMI ' + (p.f > 0 ? sgn(p.pmi) + ' bits' : MINUS + '∞ (never seen)');
+  }
+
+  /* ------------------------------------------------------------------ prose placeholders {{key args}} */
+  function val(spec) {
+    let a = spec.trim().split(/\s+/);
+    let tex = false;
+    if (a[0].indexOf('t:') === 0) { tex = true; a[0] = a[0].slice(2); }
+    let out;
+    switch (a[0]) {
+      case 'nsent': out = String(CO.nSentences); break;
+      case 'nvocab': out = String(VOCAB.length); break;
+      case 'win': out = String(CO.windowSize); break;
+      case 'pairs': out = String(CO.pairs); break;
+      case 'N': out = String(N); break;
+      case 'cnt': out = String(RS[IDX[a[1]]]); break;
+      case 'share': out = (RS[IDX[a[1]]] / N * 100).toFixed(1) + '%'; break;
+      case 'count': out = String(stat(a[1], a[2]).f); break;
+      case 'exp': out = stat(a[1], a[2]).expected.toFixed(2); break;
+      case 'ratio': out = stat(a[1], a[2]).ratio.toFixed(2); break;
+      case 'pmi': out = sgn(stat(a[1], a[2]).pmi); break;
+      case 'smooth': out = sgn(smoothed(a[1], a[2])); break;
+      case 'mi': out = MI.toFixed(2); break;
+      case 'nmin2': out = String(MIN2.length); break;
+      case 'dieratio': out = String(Math.round(DIE.ratio)); break;
+      case 'diepmi': out = DIE.pmi.toFixed(2); break;
+      case 'shuftrials': out = String(SHUF_T); break;
+      case 'shufhit': {
+        const n = TR.cnts.filter((c) => c >= TS.f).length;
+        out = n === 0 ? 'none' : String(n); break;
       }
-      n.textContent = n.getAttribute('data-fallback') || tex.replace(/\\\(|\\\)/g, '');
-      n.classList.add('nomath');
+      case 'partners': {
+        const w = a[1], k = Number(a[2]) || 3;
+        out = PAIRS_C.filter((p) => p.a === w || p.b === w).slice(0, k)
+          .map((p) => (p.a === w ? p.b : p.a) + ' ×' + p.f).join(', ');
+        break;
+      }
+      default: console.warn('unknown placeholder', spec); out = '?';
+    }
+    return tex ? out.split(MINUS).join('-') : out;
+  }
+  function fillPlaceholders() {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.nodeValue.indexOf('{{') >= 0 && !/^(SCRIPT|STYLE)$/.test(n.parentNode.nodeName) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT)
     });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((n) => { n.nodeValue = n.nodeValue.replace(/\{\{([^}]+)\}\}/g, (m, s) => val(s)); });
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', renderStaticMath);
-  else renderStaticMath();
+  fillPlaceholders();
+  renderMath(document.body);
 
-  var C = {
-    blue: '#2f6fed', orange: '#f08a1d', ink: '#1d2733', muted: '#5b6b7c',
-    blueSoft: 'rgba(47,111,237,0.12)', orangeSoft: 'rgba(240,138,29,0.12)',
-    line: '#e5e1d8', green: '#1f9d63', red: '#d64545', accent: '#6d5bd0',
-    neutral: '#f4f2ec', card: '#fdfcfa'
-  };
+  /* predict-then-reveal boxes */
+  Array.prototype.forEach.call(document.querySelectorAll('.predict'), (box) => {
+    const rv = box.querySelector('.reveal');
+    Array.prototype.forEach.call(box.querySelectorAll('button'), (b) => {
+      b.addEventListener('click', () => {
+        Array.prototype.forEach.call(box.querySelectorAll('button'), (o) => o.classList.toggle('picked', o === b));
+        rv.hidden = false;
+      });
+    });
+  });
 
-  /* ---------- data: everything computed live from the toy corpus ---------- */
-  var CO = PMI.buildCooccurrence();
-  var VOCAB = CO.vocab, F = CO.F, N = CO.N, IDX = CO.index;
-  var RS = PMI.rowSums(F), CS = PMI.colSums(F);
-  var PMI_M = PMI.pmiMatrix(F), PPMI_M = PMI.ppmiMatrix(F);
-  var MI = PMI.mutualInformation(F);
-  var PAIRS = PMI.topPairs(F, VOCAB, 0, 'count');   // all observed unordered pairs, by count desc
-  var PAIRS_PMI = PMI.topPairs(F, VOCAB, 0, 'pmi'); // same, by pmi desc
-  var DIE = PMI.dieExample();
-  var teaPartners = PAIRS.filter(function (p) { return p.a === 'tea' || p.b === 'tea'; });
-
-  function countColor(f, maxF) {
-    if (f <= 0) return '#f7f5ef';
-    return mix('#f7f5ef', C.blue, Math.pow(f / maxF, 0.65));
+  /* ------------------------------------------------------------------ tooltips */
+  const tip = document.getElementById('tip');
+  let tipT = 0;
+  function tipMove(e) {
+    tip.style.left = Math.max(6, Math.min(e.clientX + 14, window.innerWidth - 250)) + 'px';
+    tip.style.top = Math.min(e.clientY + 16, window.innerHeight - 80) + 'px';
   }
-  var PMI_ABS_MAX = 3.2;
-  function pmiColor(v, hatched) {
-    if (v === -Infinity) return hatched || mix(C.neutral, C.red, 0.25);
-    var t = Math.pow(clamp(Math.abs(v) / PMI_ABS_MAX, 0, 1), 0.8);
-    if (v > 0) return mix(C.neutral, C.blue, t);
-    if (v < 0) return mix(C.neutral, C.red, t);
-    return C.neutral;
+  function tipShow(html, e) { tip.innerHTML = html; tip.classList.add('on'); tipMove(e); }
+  function tipHide() { tip.classList.remove('on'); }
+  function bindTip(node, fn) {
+    node.classList.add('hit');
+    node.addEventListener('pointerenter', (e) => tipShow(fn(), e));
+    node.addEventListener('pointermove', tipMove);
+    node.addEventListener('pointerleave', tipHide);
+    node.addEventListener('click', (e) => { tipShow(fn(), e); clearTimeout(tipT); tipT = setTimeout(tipHide, 2800); });
+  }
+  window.addEventListener('scroll', tipHide, { passive: true });
+
+  /* ------------------------------------------------------------------ colours for matrices */
+  const PMI_ABS_MAX = 3.2;
+  function pmiColor(v, hatch) {
+    if (Number.isNaN(v)) return '#e3e0d6';
+    if (v === -Infinity) return hatch;
+    const t = Math.pow(clamp(Math.abs(v) / PMI_ABS_MAX, 0, 1), 0.8);
+    return v > 0 ? mix(C.neutral, C.blue, t) : v < 0 ? mix(C.neutral, C.orange, t) : C.neutral;
+  }
+  function hatchDefs(svg, id) {
+    const defs = el('defs', {}, svg);
+    const pat = el('pattern', { id: id, width: 7, height: 7, patternTransform: 'rotate(45)', patternUnits: 'userSpaceOnUse' }, defs);
+    el('rect', { width: 7, height: 7, fill: '#f6f4ee' }, pat);
+    el('line', { x1: 0, y1: 0, x2: 0, y2: 7, stroke: '#aaa397', 'stroke-width': 1.6 }, pat);
   }
 
-  /* ---------- scrollytelling engine ---------- */
-  var chapters = [];
-  function register(chapterEl, svgId, captionId, scenes) {
+  /* ------------------------------------------------------------------ scroll engine */
+  const mq = window.matchMedia('(max-width: 920px)');
+  const chapters = [];
+  function register(id, build) {
+    const chEl = document.getElementById(id);
+    const n = id.replace('ch', '');
     chapters.push({
-      el: chapterEl,
-      svg: document.getElementById(svgId),
-      caption: document.getElementById(captionId),
-      steps: Array.prototype.slice.call(chapterEl.querySelectorAll('.step')),
-      scenes: scenes
+      el: chEl, id: id, build: build,
+      svg: document.getElementById('viz' + n), cap: document.getElementById('cap' + n), ctl: document.getElementById('ctl' + n),
+      steps: Array.prototype.slice.call(chEl.querySelectorAll('.step')),
+      inst: null, stage: -1, p: -1, q: 0, capHtml: null
     });
   }
 
-  var dotnav = document.getElementById('dotnav');
-  var dotLinks = [];
-  document.querySelectorAll('.chapter').forEach(function (chEl) {
-    var a = document.createElement('a');
+  function buildChapter(ch) {
+    const M = mq.matches;
+    const W = M ? 380 : 640, H = M ? 330 : 560;
+    ch.svg.innerHTML = '';
+    ch.svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    ch.capHtml = null;
+    const C0 = {
+      svg: ch.svg, W: W, H: H, M: M, ctl: ch.ctl,
+      cap: function (html) {
+        if (html === ch.capHtml) return;
+        ch.capHtml = html; ch.cap.innerHTML = html; renderMath(ch.cap);
+      },
+      redraw: function () { draw(ch, ch.stage, ch.p, ch.q, true); }
+    };
+    try {
+      ch.inst = ch.build(C0);
+      ch.inst.M = M;
+    } catch (e) {
+      console.error('Chapter ' + ch.id + ' failed to build', e);
+      ch.inst = { M: M, render: function () {}, failed: true };
+      T(ch.svg, 20, 40, 'This figure could not be drawn (see the console).', 14, C.orange);
+    }
+  }
+
+  function draw(ch, stage, p, q, force) {
+    if (!ch.inst || ch.inst.M !== mq.matches) { buildChapter(ch); force = true; }
+    const changed = ch.stage !== stage || force;
+    if (!changed && Math.abs(p - ch.p) < 0.003) return;
+    ch.stage = stage; ch.p = p; ch.q = q;
+    if (ch.inst.failed) return;
+    try { ch.inst.render(stage, p, q, changed); } catch (e) {
+      console.error('Chapter ' + ch.id + ', step ' + stage + ' failed to render', e);
+    }
+  }
+
+  const dotnav = document.getElementById('dotnav');
+  const dotLinks = [];
+  document.querySelectorAll('.chapter').forEach((chEl) => {
+    const a = document.createElement('a');
     a.href = '#' + chEl.id;
-    var tag = chEl.querySelector('.tag');
-    a.innerHTML = '<span>' + (tag ? tag.textContent : chEl.id) + '</span>';
+    const tag = chEl.querySelector('.tag');
+    const label = tag ? tag.textContent : chEl.id;
+    a.setAttribute('aria-label', label);
+    a.innerHTML = '<span></span>';
+    a.firstChild.textContent = label;
     dotnav.appendChild(a);
     dotLinks.push({ a: a, el: chEl });
   });
 
-  var active = [];
-  var ticking = false;
-
-  function onScroll() {
-    if (!ticking) { ticking = true; requestAnimationFrame(update); }
-  }
-
+  let ticking = false;
+  function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(update); } }
   function update() {
     ticking = false;
-    var vh = window.innerHeight;
-    var center = vh * 0.5;
-    chapters.forEach(function (ch, ci) {
-      if (!active[ci]) active[ci] = { idx: -1, p: 0 };
-      // Activation line: the middle of the viewport. A box's scene starts only
-      // when the box itself has travelled up to the middle of the screen - never
-      // while it is still in the lower half of the viewport.
-      var trigger = vh * 0.5;
-      var lastAbove = -1;
-      ch.steps.forEach(function (s, si) {
-        if (s.getBoundingClientRect().top <= trigger) lastAbove = si;
-      });
-      var best = clamp(lastAbove, 0, ch.steps.length - 1);
-      var r0 = ch.steps[best].getBoundingClientRect();
-      // progress of the active box while it is on its way up:
-      // 0 when it enters at the bottom of the viewport, 1 when it reaches the top
-      var bp = clamp((vh - r0.top) / vh, 0, 1);
-      var changed = active[ci].idx !== best;
-      active[ci] = { idx: best, p: bp };
-      ch.steps.forEach(function (s, si) {
-        var rr = s.getBoundingClientRect();
-        // the scene follows `best`, but every box that is still on screen stays
-        // fully readable - dim only boxes that have already left the viewport
+    const vh = window.innerHeight;
+    chapters.forEach((ch) => {
+      const r = ch.el.getBoundingClientRect();
+      const near = r.bottom > -vh * 0.5 && r.top < vh * 1.5;
+      if (!near && ch.inst) return;
+      // on narrow screens the figure is pinned to the top, so a step "arrives" lower on the screen
+      const trig = mq.matches ? ({ ch3: 0.66, ch4: 0.68, ch6: 0.66, ch7: 0.7 }[ch.id] || 0.6) : 0.5;
+      let lastAbove = -1;
+      ch.steps.forEach((s, si) => { if (s.getBoundingClientRect().top <= vh * trig) lastAbove = si; });
+      const best = clamp(lastAbove, 0, ch.steps.length - 1);
+      const r0 = ch.steps[best].getBoundingClientRect();
+      const bp = clamp((vh - r0.top) / vh, 0, 1);
+      const q = clamp((bp - trig) / (1 - trig), 0, 1);
+      ch.steps.forEach((s, si) => {
+        const rr = s.getBoundingClientRect();
         s.classList.toggle('active', si === best || (rr.top < vh && rr.bottom > 0));
       });
-      var r = ch.el.getBoundingClientRect();
-      dotLinks.forEach(function (dl) {
-        if (dl.el === ch.el) dl.a.classList.toggle('on', r.top < center && r.bottom > center);
-      });
-      var scene = ch.scenes[ch.steps[best].dataset.scene];
-      if (scene) scene.render(ch.svg, bp, ch.caption, changed);
+      draw(ch, best, bp, q, false);
+    });
+    dotLinks.forEach((dl) => {
+      const r = dl.el.getBoundingClientRect();
+      dl.a.classList.toggle('on', r.top < vh * 0.5 && r.bottom > vh * 0.5);
     });
   }
-
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll);
+  window.addEventListener('load', onScroll);
+  window.addEventListener('hashchange', onScroll);
 
-  /* small shared widgets */
-  function panel(svg, x, y, w, h, title) {
-    var g = el('g', {}, svg);
-    el('rect', { x: x, y: y, width: w, height: h, rx: 10, fill: C.card, stroke: C.line }, g);
-    if (title) txt(g, x + w / 2, y + 18, title, { 'font-size': 12, fill: C.muted, 'text-anchor': 'middle', 'font-weight': 700 });
-    return g;
-  }
-  function hatchDefs(svg, id, color) {
-    var defs = el('defs', {}, svg);
-    var pat = el('pattern', { id: id, width: 7, height: 7, patternTransform: 'rotate(45)', patternUnits: 'userSpaceOnUse' }, defs);
-    el('rect', { width: 7, height: 7, fill: '#faf3f3' }, pat);
-    el('line', { x1: 0, y1: 0, x2: 0, y2: 7, stroke: color, 'stroke-width': 1.6 }, pat);
-    return pat;
-  }
-  /* shared 10x10 heatmap geometry for ch2 / ch6 */
-  var GX = 118, GY = 66, CELL = 42, GV = VOCAB.length;
-  function gridXY(i, j) { return [GX + j * CELL, GY + i * CELL]; }
-  function heatLabels(svg, g) {
-    for (var i = 0; i < GV; i++) {
-      txt(g, GX - 8, GY + i * CELL + CELL / 2 + 3.5, VOCAB[i], { 'font-size': 10, fill: C.muted, 'text-anchor': 'end' });
-      var t = txt(g, GX + i * CELL + CELL / 2, GY - 8, VOCAB[i], { 'font-size': 10, fill: C.muted, 'text-anchor': 'start' });
-      t.setAttribute('transform', 'rotate(-38 ' + (GX + i * CELL + CELL / 2) + ' ' + (GY - 8) + ')');
-    }
-  }
+  /* shared: heat-map geometry used by chapter 5 */
+  function pairKey(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
 
   /* ============================================================
-     Chapter 1 - collocations: constellation around "tea"
+     Chapter 1 - the corpus, the window, the tally
      ============================================================ */
-  register(document.getElementById('ch1'), 'viz1', 'cap1', {
-    pairs: { render: function (svg, p, cap, changed) { ch1render(svg, p, cap, 0, changed); } },
-    counts: { render: function (svg, p, cap, changed) { ch1render(svg, p, cap, 1, changed); } },
-    rare: { render: function (svg, p, cap, changed) { ch1render(svg, p, cap, 2, changed); } },
-    baseline: { render: function (svg, p, cap, changed) { ch1render(svg, p, cap, 3, changed); } }
-  });
+  register('ch1', function (C0) {
+    const svg = C0.svg, W = C0.W, H = C0.H, M = C0.M;
+    const sents = PM.CORPUS.map(PM.tokenize), nS = sents.length;
+    const demoText = 'she drinks strong tea every morning';
+    const demo = PM.CORPUS.indexOf(demoText);
+    const tracked = new Set(VOCAB);
+    const VIS = M ? 6 : nS, rowH = M ? 25 : 21, fs = M ? 15 : 13.5, cw = fs * 0.602;
+    const x0 = M ? 10 : 14, y0 = M ? 22 : 60;
+    const wCol = 300;
 
-  function ch1render(svg, p, cap, stage, changed) {
-    var st = svg._ch1;
-    if (!st) {
-      svg.innerHTML = '';
-      var cx = 300, cy = 292, R = 196;
-      var parts = teaPartners; // [{a,b,f,...}] with tea
-      var spokes = el('g', {}, svg);
-      var expG = el('g', { opacity: 0 }, svg);
-      var nodes = el('g', {}, svg);
-      var spokeEls = [], expEls = [], nodeEls = [];
-      parts.forEach(function (pr, i) {
-        var w = pr.a === 'tea' ? pr.b : pr.a;
-        var ang = (-90 + i * 360 / parts.length) * Math.PI / 180;
-        var nx = cx + R * Math.cos(ang), ny = cy + R * Math.sin(ang);
-        var exp = PMI.expectedCount(F, IDX.tea, IDX[w]);
-        expEls.push(el('line', {
-          x1: cx, y1: cy, x2: nx, y2: ny, stroke: C.muted, 'stroke-width': 1 + exp * 1.8,
-          'stroke-dasharray': '5 5', opacity: 0.55, 'class': 'anim'
-        }, expG));
-        spokeEls.push(el('line', {
-          x1: cx, y1: cy, x2: nx, y2: ny, stroke: '#b9b2a4', 'stroke-width': 0,
-          'stroke-linecap': 'round', 'class': 'anim'
-        }, spokes));
-        var g = el('g', { opacity: 0, 'class': 'anim' }, nodes);
-        el('circle', { cx: nx, cy: ny, r: 30, fill: '#fff', stroke: C.line, 'stroke-width': 2 }, g);
-        txt(g, nx, ny + 4, w, { 'font-size': 13, 'text-anchor': 'middle', 'font-weight': 700, fill: C.ink });
-        txt(g, nx, ny + 48, '×' + pr.f, { 'font-size': 11, 'text-anchor': 'middle', fill: C.muted, 'font-family': 'ui-monospace,monospace' });
-        nodeEls.push({ g: g, w: w, f: pr.f, exp: exp });
+    const listG = el('g', {}, svg), tallyG = el('g', {}, svg), zoomG = el('g', {}, svg);
+    if (!M) T(listG, x0, 34, 'the corpus, one sentence per line', 13, C.muted, { 'font-weight': 700 });
+    const rows = sents.map((toks, s) => {
+      const g = el('g', { 'class': 'anim' }, listG);
+      const hl = el('rect', { x: x0 - 6, y: -fs, width: wCol, height: rowH - 2, rx: 5, fill: C.blueSoft, opacity: 0 }, g);
+      let off = 0;
+      toks.forEach((t) => {
+        const x = x0 + off * cw;
+        if (tracked.has(t)) el('rect', { x: x - 2, y: -fs + 1, width: t.length * cw + 4, height: fs + 5, rx: 4, fill: C.blueSoft, stroke: '#b7d0f2' }, g);
+        T(g, x, 0, t, fs, tracked.has(t) ? C.ink : '#68737e', { 'class': 'mono', 'font-weight': tracked.has(t) ? 700 : 400 });
+        off += t.length + 1;
       });
-      var cg = el('g', {}, svg);
-      el('circle', { cx: cx, cy: cy, r: 46, fill: '#efecfb', stroke: C.accent, 'stroke-width': 3 }, cg);
-      txt(cg, cx, cy + 6, 'tea', { 'font-size': 20, 'text-anchor': 'middle', 'font-weight': 800, fill: C.accent });
-      txt(svg, cx, cy - 66, 'co-occurrence counts, window ±3', { 'font-size': 12, 'text-anchor': 'middle', fill: C.muted });
-      var chip = mathBox(svg, 150, 18, 340, 30, 'midmath');
-      st = svg._ch1 = { spokes: spokeEls, expEls: expEls, expG: expG, nodeEls: nodeEls, chip: chip, stage: -1, parts: parts };
-    }
-    var n = st.parts.length;
-    // entrance happens once, on the first step's scroll progress (local below);
-    // later steps keep everything fully drawn and only recolor / add overlays
-    st.spokes.forEach(function (s, i) {
-      var local = stage === 0 ? clamp(p * n * 1.25 - i, 0, 1) : 1;
-      var hl = stage === 1 && st.parts[i].a + st.parts[i].b === 'teastrong' ? C.accent
-        : stage === 2 && (st.parts[i].a + st.parts[i].b === 'teapowerful') ? C.red : '#b9b2a4';
-      s.setAttribute('stroke-width', (2 + st.parts[i].f * 1.7) * ease(local));
-      s.setAttribute('stroke', hl);
+      return { g: g, hl: hl };
     });
-    st.nodeEls.forEach(function (ne, i) {
-      var local = stage === 0 ? clamp(p * n * 1.25 - i, 0, 1) : 1;
-      ne.g.setAttribute('opacity', ease(local));
-      var ring = stage === 1 && ne.w === 'strong' ? C.accent : stage === 2 && ne.w === 'powerful' ? C.red : C.line;
-      ne.g.firstChild.setAttribute('stroke', ring);
-      ne.g.firstChild.setAttribute('stroke-width', ring === C.line ? 2 : 4);
+    const moreTxt = T(listG, x0, y0 + VIS * rowH + 4, '', 13, C.muted);
+
+    /* tally */
+    const partners = PAIRS_C.filter((p) => p.a === 'tea' || p.b === 'tea');
+    const tx = M ? 10 : 346, ty0 = M ? y0 + VIS * rowH + 34 : 96;
+    const trH = M ? 15 : 34, barX = tx + (M ? 120 : 150), barMax = (M ? 380 : 640) - tx - (M ? 120 : 150) - 44, bh = M ? 11 : 16, tfs = M ? 13 : 14;
+    const tTitle = T(tallyG, tx, ty0 - (M ? 14 : 30), '', M ? 13 : 14, C.ink, { 'font-weight': 700 });
+    const maxC = partners[0].f;
+    const tRows = partners.map((p, k) => {
+      const w = p.a === 'tea' ? p.b : p.a, y = ty0 + k * trH;
+      T(tallyG, tx, y + bh - 2, 'tea × ' + w, tfs, C.ink);
+      const bar = el('rect', { x: barX, y: y, width: 0, height: bh, rx: 3, fill: C.blue }, tallyG);
+      const num = T(tallyG, barX + 6, y + bh - 2, '0', tfs, C.ink, { 'class': 'mono', 'font-weight': 700 });
+      return { w: w, bar: bar, num: num };
     });
-    st.expG.setAttribute('opacity', stage === 3 ? 1 : 0);
-    if (stage !== st.stage) {
-      st.stage = stage;
-      if (stage === 1) setMath(st.chip, '\\text{strong} \\times \\text{tea} = ' + st.nodeEls.find(function (x) { return x.w === 'strong'; }).f, 'strong x tea = 7');
-      else if (stage === 2) setMath(st.chip, '\\text{powerful} \\times \\text{tea} = ' + st.nodeEls.find(function (x) { return x.w === 'powerful'; }).f, 'powerful x tea = 1');
-      else if (stage === 3) setMath(st.chip, '\\text{dashed} = \\text{expected under independence} = f_i f_j / N', 'dashed = expected under independence = f_i*f_j/N');
-      else setMath(st.chip, '\\text{count}(x, y) = f_{xy}', 'count(x, y) = f_xy');
-    }
-    cap.textContent = [
-      'Toy corpus (21 sentences), counted live: which words appear near "tea"?',
-      'Spoke thickness = co-occurrence count. strong x tea = 7, coffee x 3, morning x 3 ...',
-      'powerful x tea happens only ONCE - but powerful also pairs with engine (x3) and computer (x3).',
-      'Dashed spokes = counts expected by CHANCE (f_i*f_j/N). strong is frequent, so some counts are just frequency - we need the obs/exp ratio.'
-    ][stage];
-  }
 
-  /* ============================================================
-     Chapter 2 - counts -> probabilities: the F heatmap
-     ============================================================ */
-  var MAXF = Math.max.apply(null, F.map(function (r) { return Math.max.apply(null, r); }));
+    /* zoom card (step 2): one sentence up close */
+    const bigFs = M ? 15.5 : 23, bcw = bigFs * 0.602;
+    const cardY = M ? 8 : 46, cardH = H - cardY - 10;
+    el('rect', { x: 8, y: cardY, width: W - 16, height: cardH, rx: 12, fill: C.card, stroke: C.line }, zoomG);
+    T(zoomG, W / 2, cardY + 28, 'one sentence, up close', M ? 13 : 14, C.muted, { 'text-anchor': 'middle', 'font-weight': 700 });
+    const dToks = sents[demo], total = demoText.length, sx = (W - total * bcw) / 2, yb = cardY + (M ? 150 : 170);
+    const dPos = [];
+    let doff = 0;
+    dToks.forEach((t, i) => { dPos.push({ x: sx + doff * bcw, w: t.length * bcw }); doff += t.length + 1; });
+    const dyn = el('g', {}, zoomG);
+    dToks.forEach((t, i) => {
+      if (tracked.has(t)) el('rect', { x: dPos[i].x - 3, y: yb - bigFs, width: dPos[i].w + 6, height: bigFs + 9, rx: 5, fill: C.blueSoft, stroke: '#b7d0f2' }, zoomG);
+      T(zoomG, dPos[i].x, yb, t, bigFs, tracked.has(t) ? C.ink : '#68737e', { 'class': 'mono', 'font-weight': tracked.has(t) ? 700 : 400 });
+    });
+    const dEvents = PM.pairEvents([demoText], CO.windowSize).sort((a, b) => a.i - b.i || a.j - b.j);
+    const dTracked = []; dToks.forEach((t, i) => { if (tracked.has(t)) dTracked.push(i); });
 
-  register(document.getElementById('ch2'), 'viz2', 'cap2', {
-    matrix: { render: function (svg, p, cap, changed) { ch2render(svg, p, cap, 0, changed); } },
-    marginals: { render: function (svg, p, cap, changed) { ch2render(svg, p, cap, 1, changed); } },
-    joint: { render: function (svg, p, cap, changed) { ch2render(svg, p, cap, 2, changed); } },
-    total: { render: function (svg, p, cap, changed) { ch2render(svg, p, cap, 3, changed); } }
-  });
-
-  function ch2render(svg, p, cap, stage, changed) {
-    var st = svg._ch2;
-    if (!st) {
-      svg.innerHTML = '';
-      var cells = el('g', {}, svg);
-      var cellEls = [];
-      for (var i = 0; i < GV; i++) for (var j = 0; j < GV; j++) {
-        var xy = gridXY(i, j);
-        cellEls.push(el('rect', {
-          x: xy[0], y: xy[1], width: CELL - 2, height: CELL - 2, rx: 4,
-          fill: countColor(F[i][j], MAXF), stroke: '#fff', 'stroke-width': 1, opacity: 0
-        }, cells));
+    function drawZoom(k) {
+      dyn.innerHTML = '';
+      const win = CO.windowSize;
+      const focus = dTracked[k];
+      if (k >= 0 && focus + 1 < dToks.length) {
+        const last = Math.min(dToks.length - 1, focus + win);
+        el('rect', { x: dPos[focus + 1].x - 5, y: yb - bigFs - 3, width: dPos[last].x + dPos[last].w - dPos[focus + 1].x + 10, height: bigFs + 16, rx: 6, fill: C.accent, 'fill-opacity': 0.1, stroke: C.accent, 'stroke-dasharray': '5 4' }, dyn);
       }
-      var textG = el('g', {}, svg);
-      var margG = el('g', { opacity: 0 }, svg);
-      var margBars = [];
-      var maxRS = Math.max.apply(null, RS);
-      for (var k = 0; k < GV; k++) {
-        margBars.push(el('rect', { x: GX + GV * CELL + 8, y: GY + k * CELL + 6, width: 0, height: CELL - 12, rx: 3, fill: C.accent, opacity: 0.85, 'class': 'anim' }, margG));
-        margBars.push(el('rect', { x: GX + k * CELL + 6, y: GY + GV * CELL + 8, width: CELL - 12, height: 0, rx: 3, fill: C.orange, opacity: 0.85, 'class': 'anim' }, margG));
-      }
-      txt(margG, GX + GV * CELL + 8, GY - 8, 'f_i*', { 'font-size': 10, fill: C.accent, 'font-weight': 700 });
-      txt(margG, GX + GV * CELL / 2, GY + GV * CELL + 34, 'p*_j', { 'font-size': 10, fill: C.orange, 'font-weight': 700, 'text-anchor': 'middle' });
-      var lg = el('g', {}, svg);
-      heatLabels(svg, lg);
-      var title = mathBox(svg, 150, 8, 340, 30, 'midmath');
-      var nchip = mathBox(svg, 430, 500, 190, 34, 'bigmath');
-      st = svg._ch2 = { cellEls: cellEls, textG: textG, margG: margG, margBars: margBars, title: title, nchip: nchip, stage: -1, maxRS: maxRS };
+      if (k >= 0) el('rect', { x: dPos[focus].x - 3, y: yb + 9, width: dPos[focus].w + 6, height: 4, rx: 2, fill: C.accent }, dyn);
+      const shown = dEvents.filter((e) => k >= 0 && e.i <= focus);
+      shown.forEach((e) => {
+        const xa = dPos[e.i].x + dPos[e.i].w / 2, xb = dPos[e.j].x + dPos[e.j].w / 2, h = 22 * (e.j - e.i) + 14;
+        const cur = e.i === focus;
+        el('path', { d: 'M ' + xa + ' ' + (yb - bigFs - 6) + ' Q ' + (xa + xb) / 2 + ' ' + (yb - bigFs - 6 - h * 2) + ' ' + xb + ' ' + (yb - bigFs - 6), fill: 'none', stroke: C.blue, 'stroke-width': cur ? 3.5 : 2, 'stroke-opacity': cur ? 1 : 0.4, 'stroke-linecap': 'round' }, dyn);
+      });
+      const ly = yb + (M ? 46 : 70);
+      T(dyn, W / 2, ly, shown.length ? 'pairs found so far' : 'pairs found so far: none yet', M ? 13 : 14, C.muted, { 'text-anchor': 'middle' });
+      shown.forEach((e, i) => {
+        T(dyn, W / 2, ly + (M ? 22 : 28) * (i + 1), dToks[e.i] + ' – ' + dToks[e.j], M ? 15 : 18, C.blue, { 'text-anchor': 'middle', 'font-weight': 700 });
+      });
     }
-    var total = GV * GV;
-    st.cellEls.forEach(function (c, k) {
-      var i = Math.floor(k / GV), j = k % GV;
-      var local = stage === 0 ? clamp(p * total * 1.15 - k, 0, 1) : 1; // entrance once, on step 0
-      c.setAttribute('opacity', ease(local));
-    });
-    // text layer rebuilt only when the stage changes
-    if (st.stage !== stage) {
-      st.stage = stage;
-      st.textG.innerHTML = '';
-      for (var i = 0; i < GV; i++) for (var j = 0; j < GV; j++) {
-        if (F[i][j] <= 0) continue;
-        var xy = gridXY(i, j);
-        var label = stage >= 2 ? String(Math.round(F[i][j] / N * 1000)) : String(F[i][j]);
-        txt(st.textG, xy[0] + CELL / 2 - 1, xy[1] + CELL / 2 + 4, label, {
-          'font-size': F[i][j] >= 3 || stage >= 2 ? 10 : 8.5, 'text-anchor': 'middle',
-          fill: F[i][j] / MAXF > 0.45 ? '#fff' : C.ink, 'font-family': 'ui-monospace,monospace'
+
+    function tally(done) {
+      const counts = {}; let all = 0;
+      CO.events.forEach((e) => {
+        if (e.s >= done) return;
+        all++;
+        const a = VOCAB[e.wi], b = VOCAB[e.wj];
+        if (a === 'tea') counts[b] = (counts[b] || 0) + 1; else if (b === 'tea') counts[a] = (counts[a] || 0) + 1;
+      });
+      tRows.forEach((r) => {
+        const c = counts[r.w] || 0;
+        r.bar.setAttribute('width', c / maxC * barMax);
+        r.num.setAttribute('x', barX + 6 + c / maxC * barMax);
+        r.num.textContent = String(c);
+      });
+      tTitle.textContent = 'pairs counted so far: ' + all + ' of ' + CO.pairs;
+    }
+
+    const caps = [
+      'Highlighted words are the ones we follow. Grey words are filler: never counted, but they take up room.',
+      'The dashed box is the window: the next ' + CO.windowSize + ' words. Each followed word inside it forms a pair (an arc).',
+      'Bars: how often each word is paired with <i>tea</i>, updating as the sweep moves down the corpus.',
+      'Final tally of pairs with <i>tea</i>. Total pairs in the corpus: ' + CO.pairs + '.'
+    ];
+    return {
+      render: function (stage, p, q) {
+        C0.ctl.classList.remove('on');
+        show(zoomG, stage === 1); show(listG, stage !== 1);
+        let done = 0, cur = -1, k = -1;
+        if (stage === 1) { k = Math.min(dTracked.length - 1, Math.floor(q * dTracked.length * 0.999)); drawZoom(k); }
+        if (stage === 2) { done = Math.ceil(q * nS); cur = done - 1; }
+        if (stage === 3) done = nS;
+        show(tallyG, stage >= 2);
+        tally(done);
+        const start = M ? clamp((cur >= 0 ? cur : 0) - 3, 0, nS - VIS) : 0;
+        rows.forEach((r, s) => {
+          const vis = s >= start && s < start + VIS;
+          r.g.setAttribute('transform', 'translate(0,' + (y0 + (s - start) * rowH) + ')');
+          r.g.setAttribute('opacity', vis ? (stage === 2 && s > cur ? 0.75 : 1) : 0);
+          r.g.style.display = vis ? '' : 'none';
+          r.hl.setAttribute('opacity', s === cur ? 1 : 0);
         });
+        moreTxt.textContent = M && start + VIS < nS ? '… ' + (nS - start - VIS) + ' more sentences' : '';
+        C0.cap(caps[stage]);
       }
-      if (stage === 0) setMath(st.title, 'F = \\text{co-occurrence counts } f_{ij}', 'F = co-occurrence counts f_ij');
-      if (stage === 1) setMath(st.title, 'f_{i*} = \\textstyle\\sum_j f_{ij},\\ \\ f_{*j} = \\textstyle\\sum_i f_{ij}', 'f_i* = sum_j f_ij,  f_*j = sum_i f_ij');
-      if (stage === 2) setMath(st.title, 'p_{ij} = f_{ij} / N \\ \\text{(cells show per-mille)}', 'p_ij = f_ij / N  (cells show per-mille)');
-      if (stage === 3) setMath(st.title, '\\textstyle\\sum_{ij} p_{ij} = 1', 'sum p_ij = 1');
-      if (stage === 3) setMath(st.nchip, 'N = ' + N, 'N = ' + N);
-      else setMath(st.nchip, '', '');
-    }
-    st.margG.setAttribute('opacity', stage >= 1 ? 1 : 0);
-    if (stage >= 1) {
-      for (var k = 0; k < GV; k++) {
-        st.margBars[k * 2].setAttribute('width', RS[k] / st.maxRS * 56);
-        st.margBars[k * 2 + 1].setAttribute('height', CS[k] / st.maxRS * 56);
-      }
-    }
-    cap.textContent = [
-      'The co-occurrence matrix F: cell (i,j) = count f_ij. Darker = more often together. N = ' + N + ' total.',
-      'Marginals on the edges: row sums f_i* (purple), column sums p_*j (orange). tea is the most connected word.',
-      'Divide every cell by N: p_ij = f_ij/N. Cells now show per-mille - a proper joint distribution.',
-      'All probabilities sum to 1. With p(x,y), p(x), p(y) we have everything PMI needs.'
-    ][stage];
-  }
-
-  /* ============================================================
-     Chapter 3 - independence baseline: contingency + obs/exp bars
-     ============================================================ */
-  register(document.getElementById('ch3'), 'viz3', 'cap3', {
-    table: { render: function (svg, p, cap, changed) { ch3render(svg, p, cap, 0, changed); } },
-    expected: { render: function (svg, p, cap, changed) { ch3render(svg, p, cap, 1, changed); } },
-    repulsion: { render: function (svg, p, cap, changed) { ch3render(svg, p, cap, 2, changed); } },
-    ratio: { render: function (svg, p, cap, changed) { ch3render(svg, p, cap, 3, changed); } }
+    };
   });
 
-  function ch3render(svg, p, cap, stage, changed) {
-    var st = svg._ch3;
-    if (!st) {
-      svg.innerHTML = '';
-      var tabG = el('g', {}, svg);
-      var barG = el('g', {}, svg);
-      var ratioG = el('g', { opacity: 0 }, svg);
-      var chip = mathBox(svg, 60, 14, 520, 30, 'midmath');
-      // ratio number line (stage 3), built once
-      var rx0 = 350, rx1 = 605, ry = 330;
-      var vMin = -3.2, vMax = 3.5;
-      function rx(v) { return rx0 + (clamp(v, vMin, vMax) - vMin) / (vMax - vMin) * (rx1 - rx0); }
-      el('line', { x1: rx0, y1: ry, x2: rx1, y2: ry, stroke: C.line, 'stroke-width': 3 }, ratioG);
-      el('line', { x1: rx(0), y1: ry - 90, x2: rx(0), y2: ry + 12, stroke: C.muted, 'stroke-width': 1.5, 'stroke-dasharray': '5 4' }, ratioG);
-      txt(ratioG, rx(0), ry - 96, 'ratio = 1 (independence)', { 'font-size': 10, fill: C.muted, 'text-anchor': 'middle' });
-      for (var v = -3; v <= 3; v++) {
-        el('line', { x1: rx(v), y1: ry - 5, x2: rx(v), y2: ry + 5, stroke: C.muted, 'stroke-width': 1.5 }, ratioG);
-        txt(ratioG, rx(v), ry + 20, (v > 0 ? '+' : '') + v, { 'font-size': 9, fill: C.muted, 'text-anchor': 'middle', 'font-family': 'ui-monospace,monospace' });
+  /* ============================================================
+     Chapter 2 - counting is not enough: the tea constellation
+     ============================================================ */
+  register('ch2', function (C0) {
+    const svg = C0.svg, W = C0.W, H = C0.H, M = C0.M;
+    const cx = W / 2, cy = M ? 160 : 285, R = M ? 100 : 195;
+    const parts = PAIRS_C.filter((p) => p.a === 'tea' || p.b === 'tea');
+    const n = parts.length;
+    const spokeG = el('g', {}, svg), nodeG = el('g', {}, svg);
+    const kW = M ? 1.5 : 2.2;
+    const nodes = parts.map((pr, i) => {
+      const w = pr.a === 'tea' ? pr.b : pr.a;
+      const ang = (-90 + i * 360 / n) * Math.PI / 180;
+      const ux = Math.cos(ang), uy = Math.sin(ang);
+      const nx = cx + R * ux, ny = cy + R * uy;
+      const line = el('line', { x1: cx, y1: cy, x2: nx, y2: ny, stroke: C.blue, 'stroke-opacity': 0.75, 'stroke-linecap': 'round' }, spokeG);
+      const g = el('g', {}, nodeG);
+      const circ = el('circle', { cx: nx, cy: ny, r: 16, fill: '#fff', stroke: C.blue, 'stroke-width': 2.5 }, g);
+      const lab = T(g, nx, ny, w, M ? 13 : 14, C.ink, { 'text-anchor': 'middle', 'font-weight': 700 });
+      const cnt = T(spokeG, cx + (nx - cx) * 0.52, cy + (ny - cy) * 0.52 + 5, '×' + pr.f, M ? 14 : 16, C.blue, { 'text-anchor': 'middle', 'font-weight': 800, 'paint-order': 'stroke', stroke: '#fff', 'stroke-width': 5, 'class': 'mono' });
+      const nd = { pr: pr, w: w, ux: ux, uy: uy, nx: nx, ny: ny, line: line, g: g, circ: circ, lab: lab, cnt: cnt, c: RS[IDX[w]] };
+      bindTip(g, () => pairTip(pr));
+      return nd;
+    });
+    const cg = el('g', {}, svg);
+    const hub = el('circle', { cx: cx, cy: cy, r: 24, fill: '#efecfb', stroke: C.accent, 'stroke-width': 3 }, cg);
+    const hubLab = T(cg, cx, cy + 5, 'tea', 18, C.accent, { 'text-anchor': 'middle', 'font-weight': 800 });
+    const hubCnt = T(cg, cx, cy + 20, '', 13, C.accent, { 'text-anchor': 'middle', 'font-weight': 700 });
+    const radius = (c) => 7 + 4.1 * Math.sqrt(c);
+    const caps = [
+      'Line thickness and the number on it: how often each word is paired with <i>tea</i>. Hover for details.',
+      'Circle size: count(<i>x</i>), the number of pairs a word takes part in. Frequent words are big.'
+    ];
+    return {
+      render: function (stage, p, q) {
+        C0.ctl.classList.remove('on');
+        nodes.forEach((nd, i) => {
+          const local = stage === 0 ? rev(q, i, n) : 1;
+          const r = stage === 1 ? radius(nd.c) : 17;
+          nd.g.setAttribute('opacity', local);
+          nd.line.setAttribute('stroke-width', (2 + nd.pr.f * kW) * local);
+          nd.cnt.setAttribute('opacity', local > 0.6 ? 1 : 0);
+          nd.circ.setAttribute('r', r);
+          // word label sits outside the circle
+          const off = r + (M ? 14 : 16);
+          nd.lab.setAttribute('y', nd.ny + nd.uy * off + 4);
+          nd.lab.textContent = stage === 1 ? nd.w + ' · ' + nd.c : nd.w;
+          nd.lab.setAttribute('text-anchor', Math.abs(nd.ux) > 0.5 ? (nd.ux > 0 ? 'start' : 'end') : 'middle');
+          nd.lab.setAttribute('x', nd.nx + nd.ux * (Math.abs(nd.ux) > 0.5 ? r + 6 : 0));
+        });
+        hub.setAttribute('r', stage === 1 ? radius(RS[IDX.tea]) : 24);
+        hubLab.setAttribute('y', stage === 1 ? cy - 2 : cy + 5); hubLab.textContent = 'tea';
+        hubCnt.textContent = stage === 1 ? String(RS[IDX.tea]) : '';
+        C0.cap(caps[stage]);
       }
-      txt(ratioG, rx0, ry + 40, 'log2(obs/exp) = PMI, bits ->', { 'font-size': 10, fill: C.muted });
-      var rng = PMI.mulberry32(31);
-      st = svg._ch3 = { tabG: tabG, barG: barG, ratioG: ratioG, chip: chip, rx: rx, ry: ry, stage: -1, dotEls: [], rng: rng, pair: null };
-      PAIRS_PMI.forEach(function (pr, i) {
-        var d = el('circle', { cx: rx(pr.pmi), cy: ry - 26 - (i % 5) * 13, r: 5.5, fill: pr.pmi > 0 ? C.blue : C.red, 'fill-opacity': 0.85, stroke: '#fff', 'stroke-width': 1.2 }, ratioG);
-        st.dotEls.push(d);
+    };
+  });
+
+  /* ============================================================
+     Chapter 3 - what would chance give?
+     ============================================================ */
+  register('ch3', function (C0) {
+    const svg = C0.svg, W = C0.W, H = C0.H, M = C0.M;
+    const TEA = IDX.tea, STR = IDX.strong;
+    const wordFill = (w) => (w === TEA ? C.accent : w === STR ? C.teal : C.greySoft);
+    const cols = 9, cardW = M ? 34 : 58, cardH = M ? 22 : 30, gap = M ? 4 : 8;
+    const gx0 = (W - (cols * (cardW + gap) - gap)) / 2, gy0 = M ? 14 : 58;
+    const observed = CO.events.map((e) => [e.wi, e.wj]);
+    const cardsG = el('g', { 'class': 'anim' }, svg);
+    const cards = observed.map((_, k) => {
+      const x = gx0 + (k % cols) * (cardW + gap), y = gy0 + Math.floor(k / cols) * (cardH + gap);
+      const rect = el('rect', { x: x, y: y, width: cardW, height: cardH, rx: 6, fill: '#fff', stroke: C.line, 'stroke-width': 1.5 }, cardsG);
+      const s = M ? 10 : 15, py = y + (cardH - s) / 2;
+      const a = el('rect', { x: x + cardW / 2 - s - 3, y: py, width: s, height: s, rx: 3, stroke: '#c9c3b6' }, cardsG);
+      const b = el('rect', { x: x + cardW / 2 + 3, y: py, width: s, height: s, rx: 3, stroke: '#c9c3b6' }, cardsG);
+      return { rect: rect, a: a, b: b };
+    });
+    const rowsN = Math.ceil(observed.length / cols), cardsBottom = gy0 + rowsN * (cardH + gap);
+    function setCards(arr) {
+      cards.forEach((c, k) => {
+        const pr = arr[k];
+        c.a.setAttribute('fill', wordFill(pr[0])); c.b.setAttribute('fill', wordFill(pr[1]));
+        const hit = (pr[0] === TEA && pr[1] === STR) || (pr[0] === STR && pr[1] === TEA);
+        c.rect.setAttribute('stroke', hit ? C.blue : C.line);
+        c.rect.setAttribute('stroke-width', hit ? 3 : 1.5);
+        c.rect.setAttribute('fill', hit ? C.blueSoft : '#fff');
       });
-      txt(ratioG, rx1, ry - 96, 'association', { 'font-size': 10, fill: C.blue, 'text-anchor': 'end', 'font-weight': 700 });
-      txt(ratioG, rx0, ry - 26 - 4 * 13 - 14, 'repulsion', { 'font-size': 10, fill: C.red, 'font-weight': 700 });
     }
-    // left table + right bars are rebuilt only when the stage (hence the pair) changes
-    if (st.stage !== stage) {
-      st.stage = stage;
-      var pair = stage <= 1
-        ? { a: 'tea', b: 'strong' }
-        : { a: 'tea', b: 'powerful' };
-      st.pair = pair;
-      var i = IDX[pair.a], j = IDX[pair.b];
-      var ct = PMI.contingency(F, i, j);
-      var exp = ct.fi * ct.fj / N;
-      st.tabG.innerHTML = '';
-      st.barG.innerHTML = '';
-      var x0 = 36, y0 = 96, cw = 118, chh = 92;
-      el('rect', { x: x0, y: y0, width: cw * 2 + 90, height: chh * 2 + 74, rx: 10, fill: C.card, stroke: C.line }, st.tabG);
-      txt(st.tabG, x0 + cw + 45, y0 + 20, 'contingency table: ' + pair.a + ' × ' + pair.b, { 'font-size': 12, 'text-anchor': 'middle', 'font-weight': 700, fill: C.ink });
-      // headers
-      var hdr = [pair.a + ': yes', pair.a + ': no'];
-      hdr.forEach(function (h, c) {
-        txt(st.tabG, x0 + 45 + cw * c + cw / 2, y0 + 44, h, { 'font-size': 10.5, 'text-anchor': 'middle', fill: C.muted, 'font-weight': 700 });
-      });
-      [pair.b + ': yes', pair.b + ': no'].forEach(function (h, r) {
-        txt(st.tabG, x0 + 45 - 6, y0 + 70 + chh * r + chh / 2, h, { 'font-size': 10.5, 'text-anchor': 'end', fill: C.muted, 'font-weight': 700 });
-      });
-      var cells = [
-        { v: ct.a, x: 0, y: 0, lab: 'both' }, { v: ct.c, x: 1, y: 0, lab: pair.b + ' only' },
-        { v: ct.b, x: 0, y: 1, lab: pair.a + ' only' }, { v: ct.d, x: 1, y: 1, lab: 'neither' }
-      ];
-      cells.forEach(function (c) {
-        var cx = x0 + 45 + cw * c.x, cy = y0 + 56 + chh * c.y;
-        el('rect', { x: cx + 3, y: cy + 3, width: cw - 6, height: chh - 6, rx: 8, fill: c.lab === 'both' ? C.blueSoft : '#f7f5ef', stroke: C.line }, st.tabG);
-        txt(st.tabG, cx + cw / 2, cy + chh / 2 - 2, String(c.v), { 'font-size': 22, 'text-anchor': 'middle', 'font-weight': 800, fill: c.lab === 'both' ? C.blue : C.ink, 'font-family': 'ui-monospace,monospace' });
-        txt(st.tabG, cx + cw / 2, cy + chh / 2 + 16, c.lab, { 'font-size': 9.5, 'text-anchor': 'middle', fill: C.muted });
-      });
-      // right bars: observed vs expected
-      var bx = 350, bwMax = 240;
-      var scale = Math.max(ct.a, exp) * 1.25;
-      txt(st.barG, bx, 96, 'observed vs expected (independence)', { 'font-size': 12, 'font-weight': 700, fill: C.ink });
-      function bar(y, label, val, color, show) {
-        txt(st.barG, bx, y + 14, label, { 'font-size': 11, fill: C.muted });
-        el('rect', { x: bx + 92, y: y, width: show ? val / scale * bwMax : 0, height: 20, rx: 5, fill: color, 'class': 'anim' }, st.barG);
-        if (show) txt(st.barG, bx + 92 + val / scale * bwMax + 8, y + 14, val.toFixed(val < 10 ? 2 : 0), { 'font-size': 11, fill: C.ink, 'font-family': 'ui-monospace,monospace' });
+    /* legend + info line under the cards */
+    const info = T(svg, W / 2, cardsBottom + (M ? 14 : 24), '', M ? 13 : 15, C.ink, { 'text-anchor': 'middle', 'font-weight': 700 });
+    const legG = el('g', {}, svg), ly = cardsBottom + (M ? 30 : 48);
+    [['tea', C.accent], ['strong', C.teal], ['any other word', C.greySoft]].forEach((it, i) => {
+      const lx = W / 2 + (i - 1) * (M ? 105 : 150) - (M ? 38 : 50);
+      el('rect', { x: lx, y: ly - 11, width: 13, height: 13, rx: 3, fill: it[1], stroke: '#c9c3b6' }, legG);
+      T(legG, lx + 19, ly, it[0], M ? 12 : 13, C.muted);
+    });
+
+    /* histogram of shuffles */
+    const histG = el('g', {}, svg);
+    const hx0 = M ? 36 : 70, hx1 = W - (M ? 16 : 40), hBase = H - (M ? 40 : 66), hTop = M ? ly + 24 : ly + 36;
+    const BINS = 9, bw = (hx1 - hx0) / BINS;
+    el('line', { x1: hx0, y1: hBase, x2: hx1, y2: hBase, stroke: C.muted, 'stroke-width': 1.5 }, histG);
+    const bars = [];
+    for (let b = 0; b < BINS; b++) {
+      bars.push(el('rect', { x: hx0 + b * bw + 3, y: hBase, width: bw - 6, height: 0, rx: 3, fill: C.grey, 'fill-opacity': 0.75 }, histG));
+      T(histG, hx0 + b * bw + bw / 2, hBase + (M ? 15 : 18), String(b), M ? 13 : 14, C.muted, { 'text-anchor': 'middle', 'class': 'mono' });
+    }
+    T(histG, (hx0 + hx1) / 2, hBase + (M ? 32 : 40), 'tea + strong pairs in one shuffle', M ? 12 : 13, C.muted, { 'text-anchor': 'middle' });
+    const hCount = T(histG, hx0, hTop - 22, '', 14, C.ink, { 'font-weight': 700 });
+    const xAt = (v) => hx0 + (v + 0.5) * bw;
+    const expLine = el('line', { x1: 0, y1: hTop + 8, x2: 0, y2: hBase, stroke: C.ink, 'stroke-width': 2, 'stroke-dasharray': '6 4' }, histG);
+    const expLab = T(histG, 0, hTop + 4, '', M ? 12 : 13, C.ink, { 'text-anchor': 'middle', 'font-weight': 700 });
+    const obsLine = el('line', { x1: xAt(TS.f), y1: hTop + 8, x2: xAt(TS.f), y2: hBase, stroke: C.blue, 'stroke-width': 3 }, histG);
+    const obsLab = T(histG, xAt(TS.f), hTop + 4, 'seen: ' + TS.f, M ? 12.5 : 14, C.blue, { 'text-anchor': 'middle', 'font-weight': 800 });
+    const histMax = (() => { const h = new Array(BINS).fill(0); TR.cnts.forEach((c) => { if (c < BINS) h[c]++; }); return Math.max.apply(null, h); })();
+
+    /* observed vs expected bars (steps 4) */
+    const barG = el('g', {}, svg);
+    const bRows = [TS, TP, TC];
+    const bx = M ? 14 : 40, bwMax = W - bx - (M ? 70 : 110), bTop = M ? 36 : 76, bBlock = M ? 88 : 140, bhh = M ? 20 : 30;
+    const bScale = bwMax / (TS.f * 1.05);
+    const bEls = bRows.map((pr, k) => {
+      const y = bTop + k * bBlock;
+      T(barG, bx, y, pr.a + ' × ' + pr.b, M ? 14 : 17, C.ink, { 'font-weight': 700 });
+      el('rect', { x: bx, y: y + 10, width: pr.f * bScale, height: bhh, rx: 5, fill: C.blue }, barG);
+      T(barG, bx + pr.f * bScale + 8, y + 10 + bhh * 0.72, 'seen ' + pr.f, M ? 13 : 15, C.ink, { 'class': 'mono', 'font-weight': 700 });
+      const e = el('rect', { x: bx, y: y + 14 + bhh, width: pr.expected * bScale, height: bhh, rx: 5, fill: C.grey, 'fill-opacity': 0.55 }, barG);
+      T(barG, bx + pr.expected * bScale + 8, y + 14 + bhh * 1.72, 'chance ' + pr.expected.toFixed(2), M ? 13 : 15, C.muted, { 'class': 'mono' });
+      const more = pr.ratio >= 1;
+      T(barG, W - 10, y, '×' + pr.ratio.toFixed(2) + (more ? ' · more than chance' : ' · less than chance'), M ? 12.5 : 16, more ? C.blue : C.orange, { 'text-anchor': 'end', 'font-weight': 800 });
+    });
+
+    /* state: arrangement shown + user's extra shuffles */
+    const extraRng = PM.mulberry32(2024), extra = [];
+    let extraArr = null;
+    const btn = document.getElementById('shufBtn');
+    if (btn) btn.onclick = () => {
+      extraArr = PM.shuffledPairs(F, extraRng);
+      extra.push(PM.countPairIn(extraArr, TEA, STR));
+      C0.redraw();
+    };
+    const caps = [
+      'Every pair is a card with two ends. Purple = <i>tea</i>, teal = <i>strong</i>. Blue-outlined cards pair the two.',
+      'Cards re-dealt at random. The grey bars count how many <i>tea</i> + <i>strong</i> cards each shuffle produced.',
+      'Dashed line: the expected count \\(\\tfrac{16\\cdot 11}{68}\\). Blue line: what the corpus actually shows.',
+      'Blue: seen. Grey: expected by chance. The ratio says how many times more (or less) than chance.'
+    ];
+    return {
+      render: function (stage, p, q) {
+        ctlState(C0.ctl, stage === 1 || stage === 2);
+        show(cardsG, stage !== 3); show(info, stage !== 3); show(legG, stage !== 3);
+        show(barG, stage === 3); show(histG, stage === 1 || stage === 2);
+        const inShuffle = stage === 1;
+        let t = stage === 1 ? Math.max(1, Math.floor(q * SHUF_T)) : SHUF_T;
+        if (stage === 0 || stage === 3) {
+          setCards(observed);
+          info.textContent = stage === 0 ? N + ' ends: tea fills ' + RS[TEA] + ', strong fills ' + RS[STR] : '';
+        } else if (stage === 2) {
+          setCards(observed);
+          info.textContent = 'what the corpus shows: ' + TS.f + ' tea + strong cards';
+        } else {
+          const arr = extra.length ? extraArr : TR.arrs[t - 1];
+          setCards(arr);
+          info.textContent = 'this shuffle: ' + PM.countPairIn(arr, TEA, STR) + ' tea + strong cards' + (M ? ' · ' + (t + extra.length) + ' shuffles' : '');
+        }
+        // histogram
+        const h = new Array(BINS).fill(0);
+        for (let i = 0; i < t; i++) if (TR.cnts[i] < BINS) h[TR.cnts[i]]++;
+        extra.forEach((c) => { if (c < BINS) h[c]++; });
+        const hm = Math.max(Math.max.apply(null, h), 1, inShuffle ? 0 : histMax);
+        const maxH = hBase - hTop - 28;
+        h.forEach((c, b) => {
+          const hh = c / hm * maxH;
+          bars[b].setAttribute('y', hBase - hh); bars[b].setAttribute('height', hh);
+        });
+        hCount.textContent = M ? '' : 'shuffles so far: ' + (t + extra.length);
+        const ex = xAt(TS.expected);
+        expLine.setAttribute('x1', ex); expLine.setAttribute('x2', ex);
+        expLab.setAttribute('x', ex);
+        expLab.textContent = 'chance ≈ ' + TS.expected.toFixed(2);
+        const showMarks = stage === 2;
+        expLine.setAttribute('opacity', showMarks ? 1 : 0); expLab.setAttribute('opacity', showMarks ? 1 : 0);
+        obsLine.setAttribute('opacity', showMarks ? 1 : 0); obsLab.setAttribute('opacity', showMarks ? 1 : 0);
+        C0.cap(caps[stage]);
       }
-      bar(130, 'observed f', ct.a, C.blue, true);
-      bar(178, 'expected E', exp, C.orange, stage >= 1);
-      if (stage >= 1) {
-        setMath(st.chip, 'E[f_{ij}] = \\tfrac{f_i f_j}{N} = \\tfrac{' + ct.fi + ' \\cdot ' + ct.fj + '}{' + N + '} \\approx ' + exp.toFixed(2) + ' \\quad \\text{vs observed } ' + ct.a, 'E[f_ij] = f_i*f_j/N = ' + ct.fi + '*' + ct.fj + '/' + N + ' = ' + exp.toFixed(2) + '  vs observed ' + ct.a);
+    };
+  });
+
+  /* ============================================================
+     Chapter 4 - from ratio to bits
+     ============================================================ */
+  register('ch4', function (C0) {
+    const svg = C0.svg, W = C0.W, H = C0.H, M = C0.M;
+    const state = { bits: 1 };
+    const lopG = el('g', {}, svg), logG = el('g', {}, svg), dieG = el('g', {}, svg);
+    const chip = mathBox(svg, 10, M ? 8 : 18, W - 20, 44, 'big c');
+    const fsL = M ? 13 : 15;
+
+    /* step 1: linear ratio axis */
+    const lx0 = M ? 24 : 60, lx1 = W - (M ? 24 : 60), ly = M ? 160 : 270;
+    const lx = (r) => lx0 + r / 4 * (lx1 - lx0);
+    el('line', { x1: lx0, y1: ly, x2: lx1, y2: ly, stroke: C.muted, 'stroke-width': 2 }, lopG);
+    for (let r = 0; r <= 4; r++) {
+      el('line', { x1: lx(r), y1: ly - 6, x2: lx(r), y2: ly + 6, stroke: C.muted, 'stroke-width': 2 }, lopG);
+      T(lopG, lx(r), ly + 28, String(r), fsL + 1, C.muted, { 'text-anchor': 'middle', 'class': 'mono' });
+    }
+    T(lopG, (lx0 + lx1) / 2, ly + 56, 'ratio = seen ÷ expected (ordinary scale)', fsL, C.muted, { 'text-anchor': 'middle' });
+    el('line', { x1: lx(1), y1: ly - 100, x2: lx(1), y2: ly, stroke: C.grey, 'stroke-width': 2, 'stroke-dasharray': '5 4' }, lopG);
+    T(lopG, lx(1), ly - 108, 'chance (ratio 1)', fsL, C.muted, { 'text-anchor': 'middle' });
+    [[0.5, C.orange, 'half as often', ly - 60, '½'], [2, C.blue, 'twice as often', ly - 60, '2']].forEach((it) => {
+      el('circle', { cx: lx(it[0]), cy: ly, r: 9, fill: it[1] }, lopG);
+      const a = lx(1), b = lx(it[0]);
+      el('path', { d: 'M ' + a + ' ' + it[3] + ' L ' + b + ' ' + it[3], stroke: it[1], 'stroke-width': 4, 'stroke-linecap': 'round' }, lopG);
+      const left = it[0] < 1, tx2 = left ? a - 8 : a + 8, anc = left ? 'end' : 'start';
+      T(lopG, tx2, it[3] - 12, it[2], fsL, it[1], { 'text-anchor': anc, 'font-weight': 700 });
+      T(lopG, tx2, it[3] + 22, 'distance ' + (left ? '½' : '1'), fsL, it[1], { 'text-anchor': anc });
+    });
+
+    /* steps 2-4: bits axis with ratio ticks */
+    const bx0 = M ? 22 : 50, bx1 = W - (M ? 22 : 50), by = M ? 200 : 300;
+    const bx = (b) => bx0 + (clamp(b, -3.2, 3.2) + 3.2) / 6.4 * (bx1 - bx0);
+    el('line', { x1: bx0, y1: by, x2: bx1, y2: by, stroke: C.muted, 'stroke-width': 3 }, logG);
+    el('line', { x1: bx(0), y1: by - 70, x2: bx(0), y2: by + 8, stroke: C.grey, 'stroke-width': 2, 'stroke-dasharray': '5 4' }, logG);
+    const ratioTxt = ['⅛', '¼', '½', '1', '2', '4', '8'];
+    for (let b = -3; b <= 3; b++) {
+      el('line', { x1: bx(b), y1: by - 6, x2: bx(b), y2: by + 6, stroke: C.muted, 'stroke-width': 2 }, logG);
+      T(logG, bx(b), by + 28, (b > 0 ? '+' : b < 0 ? MINUS : '') + Math.abs(b), fsL, C.ink, { 'text-anchor': 'middle', 'class': 'mono' });
+      T(logG, bx(b), by - 14, '×' + ratioTxt[b + 3], fsL, C.muted, { 'text-anchor': 'middle' });
+    }
+    T(logG, bx0 - 2, by + 52, 'bits = log₂ of the ratio', fsL, C.muted);
+    T(logG, bx0, by + 82, '← less than chance', fsL, C.orange, { 'font-weight': 700 });
+    T(logG, bx1, by + 82, 'more than chance →', fsL, C.blue, { 'font-weight': 700, 'text-anchor': 'end' });
+    const handle = el('g', {}, logG);
+    el('line', { x1: 0, y1: -46, x2: 0, y2: 0, stroke: C.accent, 'stroke-width': 3 }, handle);
+    el('circle', { cx: 0, cy: 0, r: 11, fill: C.accent, stroke: '#fff', 'stroke-width': 3 }, handle);
+    const handleLab = T(handle, 0, -54, '', fsL + 1, C.accent, { 'text-anchor': 'middle', 'font-weight': 800 });
+    /* markers for the two example pairs */
+    const marks = el('g', {}, logG);
+    [[TS, C.blue], [TP, C.orange]].forEach((it, i) => {
+      const pr = it[0], x = bx(pr.pmi), yy = by - 44 - i * 0;
+      el('circle', { cx: x, cy: by, r: 10, fill: it[1], stroke: '#fff', 'stroke-width': 2 }, marks);
+      el('line', { x1: x, y1: by - 10, x2: x, y2: by - (M ? 50 : 70) - i * (M ? 22 : 30), stroke: it[1], 'stroke-width': 2 }, marks);
+      T(marks, x, by - (M ? 56 : 76) - i * (M ? 22 : 30), pr.a + ' × ' + pr.b + '  ' + sgn(pr.pmi) + ' bits', fsL, it[1], { 'text-anchor': 'middle', 'font-weight': 800 });
+    });
+
+    /* die panel */
+    const dTop = M ? 66 : 82;
+    el('rect', { x: M ? 18 : 60, y: dTop, width: 56, height: 56, rx: 11, fill: '#fff', stroke: C.ink, 'stroke-width': 2.5 }, dieG);
+    [[-14, -14], [14, -14], [0, 0], [-14, 14], [14, 14]].forEach((o) => el('circle', { cx: (M ? 46 : 88) + o[0] * 0.8, cy: dTop + 28 + o[1] * 0.8, r: 5, fill: C.ink }, dieG));
+    const pb0 = M ? 94 : 150, pbMax = W - pb0 - (M ? 12 : 40);
+    [[DIE.p5, 'chance of a 5: 1 in 6', C.grey, 0], [DIE.p5GivenGt4, 'chance of a 5 if the result is above 4: 1 in 2', C.blue, 1]].forEach((it) => {
+      const yy = dTop + it[3] * (M ? 34 : 38);
+      el('rect', { x: pb0, y: yy, width: it[0] / 0.5 * pbMax * 0.6, height: M ? 14 : 18, rx: 4, fill: it[2], 'fill-opacity': 0.8 }, dieG);
+      T(dieG, pb0, yy - 4, it[1], M ? 11.5 : 13, C.ink);
+    });
+    T(dieG, W / 2, dTop + (M ? 76 : 86), '×' + Math.round(DIE.ratio) + ' likelier', M ? 15 : 18, C.blue, { 'text-anchor': 'middle', 'font-weight': 800 });
+    const dieMark = el('g', {}, logG);
+    el('circle', { cx: bx(DIE.pmi), cy: by, r: 10, fill: C.blue, stroke: '#fff', 'stroke-width': 2 }, dieMark);
+    T(dieMark, bx(DIE.pmi), by - 42, sgn(DIE.pmi) + ' bits', fsL + 1, C.blue, { 'text-anchor': 'middle', 'font-weight': 800 });
+
+    const range = document.getElementById('bitsRange'), out = document.getElementById('bitsOut');
+    function setBits(b) { state.bits = clamp(b, -3, 3); range.value = state.bits; C0.redraw(); }
+    range.oninput = () => setBits(Number(range.value));
+    Array.prototype.forEach.call(C0.ctl.querySelectorAll('button[data-bits]'), (b) => {
+      b.onclick = () => setBits(Number(b.getAttribute('data-bits')));
+    });
+    const caps = [
+      'On the ordinary scale, ×2 and ×½ are not equally far from 1, although they are equally strong.',
+      'Each step of one bit doubles (to the right) or halves (to the left) the ratio. Drag the handle.',
+      'PMI in bits for two pairs of the corpus. Right of the dashed line: more than chance. Left: less.',
+      'A die: the 5 becomes three times likelier, \\(\\log_2 3\\) bits.'
+    ];
+    let lastChip = '';
+    return {
+      render: function (stage, p, q) {
+        ctlState(C0.ctl, stage === 1);
+        show(lopG, stage === 0); show(logG, stage >= 1); show(dieG, stage === 3);
+        show(handle, stage === 1); show(marks, stage === 2); show(dieMark, stage === 3);
+        let src = '';
+        if (stage === 0) src = '\\log_2 2 = 1 \\qquad \\log_2 \\tfrac12 = -1';
+        else if (stage === 1) {
+          const b = state.bits, r = Math.pow(2, b);
+          handle.setAttribute('transform', 'translate(' + bx(b) + ',' + by + ')');
+          handleLab.textContent = sgn(b, 2) + ' bits';
+          out.textContent = '×' + (r >= 1 ? r.toFixed(2) : r.toFixed(3));
+          src = '\\log_2 ' + r.toFixed(r >= 1 ? 2 : 3) + ' = ' + b.toFixed(2).replace(MINUS, '-');
+        } else if (stage === 2) src = '\\mathrm{PMI}=\\log_2\\dfrac{\\text{seen}}{\\text{expected}}';
+        else src = '\\log_2\\dfrac{1/2}{1/6}=\\log_2 3 \\approx ' + DIE.pmi.toFixed(2);
+        if (src !== lastChip) { lastChip = src; setTex(chip, src); }
+        C0.cap(caps[stage]);
+      }
+    };
+  });
+
+  /* ============================================================
+     Chapter 5 - count versus PMI: slope chart and heatmap
+     ============================================================ */
+  register('ch5', function (C0) {
+    const svg = C0.svg, W = C0.W, H = C0.H, M = C0.M;
+    hatchDefs(svg, 'hatch5');
+    const slopeG = el('g', {}, svg), matG = el('g', {}, svg);
+
+    /* ---- slope chart */
+    const L = MIN2.slice().sort((a, b) => b.f - a.f || (a.a + a.b < b.a + b.b ? -1 : 1));
+    const R = MIN2.slice().sort((a, b) => b.pmi - a.pmi);
+    const n = L.length, rowH = M ? 34 : 46, sy0 = M ? 62 : 104;
+    const xl = M ? 134 : 250, xr = M ? 216 : 392;
+    T(slopeG, xl, M ? 22 : 40, 'by count', M ? 14 : 16, C.ink, { 'text-anchor': 'end', 'font-weight': 800 });
+    T(slopeG, xr, M ? 22 : 40, 'by PMI', M ? 14 : 16, C.ink, { 'text-anchor': 'end', 'font-weight': 800, 'class': 'rtitle' });
+    T(slopeG, xl, M ? 40 : 62, 'seen', M ? 12 : 13, C.muted, { 'text-anchor': 'end' });
+    const rTitle2 = T(slopeG, xr, M ? 40 : 62, 'bits', M ? 12 : 13, C.muted, { 'text-anchor': 'end' });
+    const items = L.map((pr, i) => {
+      const iR = R.indexOf(pr);
+      const g = el('g', {}, slopeG);
+      const line = el('line', { x1: xl + 12, y1: 0, x2: xr - 12, y2: 0, 'stroke-linecap': 'round' }, g);
+      const dl = el('circle', { cx: xl + 6, cy: 0, r: M ? 10 : 12, fill: C.blue }, g);
+      const cl = T(g, xl + 6, 0, String(pr.f), M ? 12 : 14, '#fff', { 'text-anchor': 'middle', 'font-weight': 800, 'class': 'mono' });
+      const nl = T(g, xl - (M ? 16 : 22), 0, pr.a + ' × ' + pr.b, M ? 11.5 : 15, C.ink, { 'text-anchor': 'end' });
+      const dr = el('circle', { cx: xr + 6, cy: 0, r: M ? 8 : 9, fill: pr.pmi >= 0 ? C.blue : C.orange }, g);
+      const nr = T(g, xr + (M ? 20 : 24), 0, pr.a + ' × ' + pr.b, M ? 11.5 : 15, C.ink);
+      const vr = T(g, xr + (M ? 20 : 24), 0, sgn(pr.pmi), M ? 12 : 14, pr.pmi >= 0 ? C.blue : C.orange, { 'font-weight': 800, 'class': 'mono' });
+      bindTip(g, () => pairTip(pr));
+      return { pr: pr, iL: i, iR: iR, g: g, line: line, dl: dl, cl: cl, nl: nl, dr: dr, nr: nr, vr: vr };
+    });
+    const hiTC = pairKey('tea', 'coffee'), hiPC = pairKey('powerful', 'computer');
+
+    /* ---- heatmap */
+    const words = M ? ['tea', 'coffee', 'strong', 'powerful', 'engine', 'storm'] : VOCAB;
+    const GV = words.length, cell = M ? 38 : 42, GX = M ? 88 : 112, GY = M ? 60 : 88;
+    const fsC = M ? 11.5 : 12, fsW = M ? 12.5 : 13.5;
+    words.forEach((w, i) => {
+      T(matG, GX - 8, GY + i * cell + cell / 2 + 4, w, fsW, C.ink, { 'text-anchor': 'end' });
+      const t = T(matG, GX + i * cell + cell / 2, GY - 8, w, fsW, C.ink, { 'text-anchor': 'start' });
+      t.setAttribute('transform', 'rotate(' + (M ? -42 : -58) + ' ' + (GX + i * cell + cell / 2) + ' ' + (GY - 8) + ')');
+    });
+    for (let i = 0; i < GV; i++) for (let j = 0; j < GV; j++) {
+      const a = words[i], b = words[j], v = PMI_M[IDX[a]][IDX[b]];
+      const g = el('g', {}, matG);
+      el('rect', { x: GX + j * cell, y: GY + i * cell, width: cell - 2, height: cell - 2, rx: 4, fill: pmiColor(v, 'url(#hatch5)') }, g);
+      if (Number.isNaN(v)) T(g, GX + j * cell + cell / 2 - 1, GY + i * cell + cell / 2 + 4, '–', fsC, C.muted, { 'text-anchor': 'middle' });
+      else if (v !== -Infinity) {
+        const t = Math.pow(clamp(Math.abs(v) / PMI_ABS_MAX, 0, 1), 0.8);
+        T(g, GX + j * cell + cell / 2 - 1, GY + i * cell + cell / 2 + 4, sgn(v, M ? 1 : 2), fsC, t > 0.55 ? '#fff' : C.ink, { 'text-anchor': 'middle', 'class': 'mono', 'font-weight': 600 });
+      }
+      bindTip(g, () => (i === j ? '<b>' + a + '</b> with itself: not defined' : pairTip(stat(a, b))));
+    }
+    const lgY = GY + GV * cell + (M ? 6 : 12), lgW = GV * cell - 2;
+    for (let s = 0; s < 48; s++) {
+      el('rect', { x: GX + s / 48 * lgW, y: lgY, width: lgW / 48 + 1, height: 10, fill: pmiColor(-PMI_ABS_MAX + s / 47 * 2 * PMI_ABS_MAX) }, matG);
+    }
+    T(matG, GX, lgY + 24, MINUS + (M ? ' less' : ' less than chance'), M ? 11.5 : 12.5, C.orange, { 'font-weight': 700 });
+    T(matG, GX + lgW / 2, lgY + 24, '0', M ? 11.5 : 12.5, C.muted, { 'text-anchor': 'middle' });
+    T(matG, GX + lgW, lgY + 24, (M ? '+ more' : '+ more than chance'), M ? 11.5 : 12.5, C.blue, { 'text-anchor': 'end', 'font-weight': 700 });
+
+    const caps = [
+      'Pairs seen at least twice, sorted by how often they were seen. The circle holds the count.',
+      'Lines connect each pair’s count rank to its PMI rank. Blue lines: the pair rises. Orange: it sinks.',
+      'Highlighted: both pairs have count ' + TC.f + ', but their PMI ranks are far apart.',
+      'PMI in bits for every pair of words. Hover or tap a cell for the numbers.'
+    ];
+    return {
+      render: function (stage, p, q) {
+        C0.ctl.classList.remove('on');
+        show(slopeG, stage !== 3); show(matG, stage === 3);
+        const e = stage === 0 ? 0 : stage === 1 ? ease(clamp(q * 2.2, 0, 1)) : 1;
+        items.forEach((it) => {
+          const yL = sy0 + it.iL * rowH, yR = sy0 + (it.iL + (it.iR - it.iL) * e) * rowH;
+          const hi = pairKey(it.pr.a, it.pr.b) === hiTC || pairKey(it.pr.a, it.pr.b) === hiPC;
+          const dim = stage === 2 && !hi;
+          const col = it.iR < it.iL ? C.blue : it.iR > it.iL ? C.orange : C.grey;
+          it.g.setAttribute('opacity', 1);
+          it.dl.setAttribute('fill', dim ? '#d3e1f4' : C.blue); it.cl.setAttribute('fill', dim ? C.ink : '#fff');
+          it.dr.setAttribute('fill', dim ? (it.pr.pmi >= 0 ? '#d3e1f4' : '#f6dcc2') : (it.pr.pmi >= 0 ? C.blue : C.orange));
+          [it.nl, it.nr].forEach((n2) => n2.setAttribute('fill', dim ? C.muted : C.ink));
+          it.vr.setAttribute('fill', dim ? C.muted : (it.pr.pmi >= 0 ? C.blue : C.orange));
+          it.line.setAttribute('x1', xl + 12); it.line.setAttribute('y1', yL);
+          it.line.setAttribute('x2', xr - 12); it.line.setAttribute('y2', yR);
+          it.line.setAttribute('stroke', col);
+          it.line.setAttribute('stroke-width', stage === 2 && hi ? 6 : 3);
+          it.line.setAttribute('opacity', stage === 0 ? 0 : dim ? 0.25 : 0.85);
+          it.dl.setAttribute('cy', yL); it.cl.setAttribute('y', yL + 4.5); it.nl.setAttribute('y', yL + 4.5);
+          const showR = stage >= 1 ? clamp((e - 0.6) / 0.4, 0, 1) : 0;
+          [it.dr, it.nr, it.vr].forEach((n2) => n2.setAttribute('opacity', showR));
+          it.dr.setAttribute('cy', yR);
+          if (M) { it.nr.setAttribute('y', yR - 2); it.vr.setAttribute('y', yR + 12); } else {
+            it.nr.setAttribute('y', yR + 5); it.vr.setAttribute('y', yR + 5);
+            it.vr.setAttribute('x', xr + 24 + 160);
+          }
+        });
+        C0.cap(caps[stage]);
+      }
+    };
+  });
+
+  /* ============================================================
+     Chapter 6 - when PMI misleads
+     ============================================================ */
+  register('ch6', function (C0) {
+    const svg = C0.svg, W = C0.W, H = C0.H, M = C0.M;
+    hatchDefs(svg, 'hatch6');
+    const fsR = M ? 11.5 : 13.5;
+    const zeroX = M ? 168 : 296, scale = M ? 36 : 62, labelX = M ? 122 : 214, rowH = M ? 29 : 26, top = M ? 40 : 64;
+    const maxRows = M ? 9 : 18;
+    /* rows: every observed pair + the never-seen storm x tea */
+    const neverPair = PM.pairStats(F, VOCAB, IDX.storm, IDX.tea);
+    const all = PAIRS_P.slice();
+    const rows = all.concat([neverPair]).map((pr) => {
+      const g = el('g', { 'class': 'anim' }, svg);
+      const isNever = pr.f === 0;
+      const band = el('rect', { x: 4, y: -rowH * 0.7, width: W - 8, height: rowH - 2, rx: 6, fill: C.blueSoft, opacity: 0 }, g);
+      T(g, labelX, 4, pairName(pr), fsR, C.ink, { 'text-anchor': 'end' });
+      const bar = el('rect', { x: zeroX, y: -9, width: 0, height: 18, rx: 4, fill: isNever ? 'url(#hatch6)' : pr.pmi >= 0 ? C.blue : C.orange }, g);
+      if (isNever) { bar.setAttribute('x', zeroX - 50); bar.setAttribute('width', 50); bar.setAttribute('stroke', '#aaa397'); }
+      const v = T(g, zeroX, 4, '', fsR, C.ink, { 'class': 'mono', 'font-weight': 700 });
+      const cnt = T(g, W - 8, 4, (M ? '' : 'seen ') + pr.f + '×', fsR, pr.f <= 1 ? C.orange : C.muted, { 'text-anchor': 'end', 'font-weight': pr.f <= 1 ? 800 : 400 });
+      const dia = el('path', { d: 'M 0 -7 L 7 0 L 0 7 L -7 0 Z', fill: C.ink, stroke: '#fff', 'stroke-width': 1.5 }, g);
+      const sm = isNever ? -Infinity : smoothed(pr.a, pr.b);
+      bindTip(g, () => pairTip(pr) + (isNever ? '' : '<br>smoothed PMI ' + sgn(sm) + ' bits'));
+      return { pr: pr, g: g, band: band, bar: bar, v: v, cnt: cnt, dia: dia, sm: sm, never: isNever };
+    });
+    el('line', { x1: zeroX, y1: top - 20, x2: zeroX, y2: H - 10, stroke: C.ink, 'stroke-width': 2 }, svg);
+    T(svg, labelX, M ? 20 : 38, 'pair', fsR, C.muted, { 'text-anchor': 'end', 'font-weight': 700 });
+    T(svg, zeroX + 6, M ? 20 : 38, 'PMI, bits', fsR, C.muted, { 'font-weight': 700 });
+    const hdrCnt = T(svg, W - 8, M ? 20 : 38, M ? 'seen' : 'times seen', fsR, C.muted, { 'text-anchor': 'end', 'font-weight': 700 });
+    const toggle = document.getElementById('minToggle');
+    const st = { minOn: false, stage: -1 };
+    toggle.onchange = () => { st.minOn = toggle.checked; C0.redraw(); };
+
+    const curated = [pairKey('powerful', 'storm'), pairKey('tea', 'strong'), pairKey('tea', 'bitter'), pairKey('tea', 'powerful'), pairKey('storm', 'tea')];
+    const caps = [
+      'Pairs ranked by PMI. The right-hand column shows how often each was actually seen: the top ones were seen once.',
+      'Ranked by PMI. With the minimum-count filter on, one-off pairs disappear from the list.',
+      'Bars flatten onto zero: negative PMI and never-seen pairs (hatched, \\(-\\infty\\)) become 0 in PPMI.',
+      'The diamond marks PMI after smoothing. The rarer word of each pair is treated as the context word.'
+    ];
+    return {
+      render: function (stage, p, q, changed) {
+        ctlState(C0.ctl, stage === 1);
+        if (changed && st.stage !== stage) {
+          st.stage = stage;
+          st.minOn = stage === 1;
+        }
+        toggle.checked = st.minOn;
+        let list;
+        if (stage === 2) list = rows.filter((r) => curated.indexOf(pairKey(r.pr.a, r.pr.b)) >= 0)
+          .sort((a, b) => curated.indexOf(pairKey(a.pr.a, a.pr.b)) - curated.indexOf(pairKey(b.pr.a, b.pr.b)));
+        else {
+          list = rows.filter((r) => !r.never && (stage === 1 && st.minOn ? r.pr.f >= 2 : true)).slice(0, maxRows);
+        }
+        const flat = stage === 2 ? ease(clamp((q - 0.35) / 0.5, 0, 1)) : 0;
+        rows.forEach((r) => {
+          const k = list.indexOf(r);
+          const vis = k >= 0;
+          r.g.setAttribute('opacity', vis ? 1 : 0);
+          r.g.style.pointerEvents = vis ? 'auto' : 'none';
+          r.g.setAttribute('transform', 'translate(0,' + (top + (vis ? k : list.length) * rowH) + ')');
+          r.band.setAttribute('opacity', stage === 0 && k === 0 ? 1 : 0);
+          if (r.never) {
+            r.v.textContent = flat > 0.5 ? '0' : MINUS + '∞';
+            r.v.setAttribute('x', zeroX + 6);
+            r.bar.setAttribute('opacity', 1 - flat);
+          } else {
+            const v0 = r.pr.pmi, vShow = v0 < 0 ? v0 * (1 - flat) : v0;
+            const w = Math.abs(vShow) * scale;
+            r.bar.setAttribute('x', vShow >= 0 ? zeroX : zeroX - w);
+            r.bar.setAttribute('width', w);
+            r.bar.setAttribute('fill', v0 >= 0 ? C.blue : (flat > 0.5 ? C.grey : C.orange));
+            r.v.textContent = flat > 0.5 && v0 < 0 ? '0' : sgn(v0) + (stage === 3 ? ' → ' + sgn(r.sm) : '');
+            r.v.setAttribute('x', stage === 3 ? W - 8 : (vShow >= 0 ? zeroX + w + 6 : zeroX + 6));
+            r.v.setAttribute('text-anchor', stage === 3 ? 'end' : 'start');
+            r.dia.setAttribute('opacity', stage === 3 ? 1 : 0);
+            r.dia.setAttribute('transform', 'translate(' + (zeroX + clamp(r.sm, -3, 3.5) * scale) + ',0)');
+          }
+          if (r.never) r.dia.setAttribute('opacity', 0);
+        });
+        rows.forEach((r) => r.cnt.setAttribute('opacity', stage === 3 ? 0 : 1));
+        hdrCnt.textContent = stage === 3 ? (M ? 'plain → smoothed' : 'plain → smoothed PMI') : (M ? 'seen' : 'times seen');
+        C0.cap(caps[stage]);
+      }
+    };
+  });
+
+  /* ============================================================
+     Chapter 7 - playground
+     ============================================================ */
+  register('ch7', function (C0) {
+    const svg = C0.svg, W = C0.W, H = C0.H, M = C0.M;
+    const selX = document.getElementById('pgX'), selY = document.getElementById('pgY');
+    const rng = document.getElementById('pgW'), rOut = document.getElementById('pgWout');
+    const inp = document.getElementById('pgS');
+    const pg = window.__pgState || (window.__pgState = { x: 'tea', y: 'strong', w: 3, corpus: PM.CORPUS.slice() });
+    if (!selX.options.length) VOCAB.forEach((w) => {
+      selX.appendChild(new Option(w, w)); selY.appendChild(new Option(w, w));
+    });
+    selX.value = pg.x; selY.value = pg.y; rng.value = pg.w; rOut.textContent = pg.w;
+    let msg = '';
+    const fsB = M ? 13 : 16;
+    const title = T(svg, W / 2, M ? 30 : 46, '', M ? 20 : 28, C.ink, { 'text-anchor': 'middle', 'font-weight': 800 });
+    const sub = T(svg, W / 2, M ? 48 : 70, '', M ? 12 : 14, C.muted, { 'text-anchor': 'middle' });
+    const bx = M ? 12 : 40, bMax = W - bx - (M ? 90 : 130), by1 = M ? 62 : 100, bhh = M ? 18 : 32;
+    T(svg, bx, by1 - 5, 'seen in the corpus', fsB - 1, C.muted);
+    T(svg, bx, by1 + bhh + (M ? 20 : 30), 'expected by chance', fsB - 1, C.muted);
+    const barSeen = el('rect', { x: bx, y: by1, width: 0, height: bhh, rx: 6, fill: C.blue }, svg);
+    const barExp = el('rect', { x: bx, y: by1 + bhh + (M ? 24 : 38), width: 0, height: bhh, rx: 6, fill: C.grey, 'fill-opacity': 0.55 }, svg);
+    const vSeen = T(svg, bx, by1 + bhh * 0.72, '', fsB, C.ink, { 'class': 'mono', 'font-weight': 800 });
+    const vExp = T(svg, bx, by1 + bhh * 1.72 + (M ? 24 : 38), '', fsB, C.muted, { 'class': 'mono', 'font-weight': 700 });
+    /* bits axis */
+    const ax0 = M ? 24 : 60, ax1 = W - (M ? 24 : 60), ay = M ? 178 : 352;
+    const ax = (b) => ax0 + (clamp(b, -4, 4) + 4) / 8 * (ax1 - ax0);
+    el('line', { x1: ax0, y1: ay, x2: ax1, y2: ay, stroke: C.muted, 'stroke-width': 3 }, svg);
+    el('line', { x1: ax(0), y1: ay - 34, x2: ax(0), y2: ay + 8, stroke: C.grey, 'stroke-width': 2, 'stroke-dasharray': '5 4' }, svg);
+    for (let b = -4; b <= 4; b += 2) {
+      T(svg, ax(b), ay + 26, (b > 0 ? '+' : b < 0 ? MINUS : '') + Math.abs(b), M ? 12 : 13, C.muted, { 'text-anchor': 'middle', 'class': 'mono' });
+      el('line', { x1: ax(b), y1: ay - 5, x2: ax(b), y2: ay + 5, stroke: C.muted, 'stroke-width': 2 }, svg);
+    }
+    T(svg, ax0, ay - 44, '← less than chance', M ? 12 : 13, C.orange, { 'font-weight': 700 });
+    T(svg, ax1, ay - 44, 'more than chance →', M ? 12 : 13, C.blue, { 'font-weight': 700, 'text-anchor': 'end' });
+    const marker = el('circle', { cx: ax0, cy: ay, r: 11, fill: C.accent, stroke: '#fff', 'stroke-width': 3 }, svg);
+    const mLab = T(svg, ax0, ay - 16, '', M ? 14 : 16, C.accent, { 'text-anchor': 'middle', 'font-weight': 800 });
+    const neverHatch = (hatchDefs(svg, 'hatch7'), el('rect', { x: ax0 - 6, y: ay - 9, width: 30, height: 18, rx: 4, fill: 'url(#hatch7)', stroke: '#aaa397' }, svg));
+    const formula = mathBox(svg, 10, ay + (M ? 36 : 56), W - 20, 60, 'big c');
+    const chips = [];
+    ['seen', 'expected', 'ratio', 'PMI', 'PPMI'].forEach((lab, i) => {
+      const cw2 = (W - 20) / 5, x = 10 + i * cw2, y = H - (M ? 52 : 70);
+      el('rect', { x: x + 2, y: y, width: cw2 - 4, height: M ? 42 : 56, rx: 8, fill: C.neutral, stroke: C.line }, svg);
+      T(svg, x + cw2 / 2, y + (M ? 14 : 18), lab, M ? 11 : 12.5, C.muted, { 'text-anchor': 'middle' });
+      chips.push(T(svg, x + cw2 / 2, y + (M ? 33 : 43), '', M ? 13 : 17, C.ink, { 'text-anchor': 'middle', 'font-weight': 800, 'class': 'mono' }));
+    });
+
+    function recompute() {
+      pg.co = PM.buildCooccurrence(pg.corpus, pg.w);
+    }
+    recompute();
+    function refresh() {
+      pg.x = selX.value; pg.y = selY.value; pg.w = Number(rng.value); rOut.textContent = pg.w;
+      recompute(); C0.redraw();
+    }
+    selX.onchange = refresh; selY.onchange = refresh; rng.oninput = refresh;
+    document.getElementById('pgAdd').onclick = () => {
+      const s = inp.value.trim();
+      if (!s) return;
+      const toks = PM.tokenize(s);
+      const hits = toks.filter((t) => VOCAB.indexOf(t) >= 0).length;
+      pg.corpus.push(s); inp.value = '';
+      msg = hits ? 'Added. ' + hits + ' of its words are followed.' : 'Added, but none of its words are among the ' + VOCAB.length + ' followed words, so nothing changes.';
+      refresh();
+    };
+    document.getElementById('pgReset').onclick = () => { pg.corpus = PM.CORPUS.slice(); msg = 'Corpus reset.'; refresh(); };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('pgAdd').click(); };
+
+    return {
+      render: function (stage) {
+        C0.ctl.classList.add('on');
+        const co = pg.co, i = co.index[pg.x], j = co.index[pg.y];
+        title.textContent = pg.x + ' × ' + pg.y;
+        sub.textContent = 'window ±' + pg.w + ' · ' + co.pairs + ' pairs · N = ' + co.N;
+        const same = i === j;
+        const s = PM.pairStats(co.F, co.vocab, i, j);
+        const have = !same && co.N > 0;
+        const maxV = Math.max(s.f, s.expected, 1) * 1.15;
+        barSeen.setAttribute('width', have ? s.f / maxV * bMax : 0);
+        barExp.setAttribute('width', have ? s.expected / maxV * bMax : 0);
+        vSeen.setAttribute('x', bx + (have ? s.f / maxV * bMax : 0) + 8); vSeen.textContent = have ? String(s.f) : '';
+        vExp.setAttribute('x', bx + (have ? s.expected / maxV * bMax : 0) + 8); vExp.textContent = have ? s.expected.toFixed(2) : '';
+        const never = have && s.f === 0;
+        marker.setAttribute('opacity', have && !never ? 1 : 0);
+        mLab.setAttribute('opacity', have ? 1 : 0);
+        neverHatch.setAttribute('opacity', never ? 1 : 0);
+        if (have && !never) {
+          marker.setAttribute('cx', ax(s.pmi)); mLab.setAttribute('x', ax(s.pmi)); mLab.textContent = sgn(s.pmi) + ' bits';
+        } else if (never) { mLab.setAttribute('x', ax0 + 60); mLab.textContent = MINUS + '∞: never seen'; mLab.setAttribute('text-anchor', 'middle'); }
+        if (!never) mLab.setAttribute('text-anchor', 'middle');
+        let src = '';
+        if (same) src = '\\text{pick two different words}';
+        else if (co.N === 0) src = '\\text{no pairs in this corpus}';
+        else if (never) src = '\\log_2\\dfrac{0}{' + s.expected.toFixed(2) + '} = -\\infty';
+        else src = '\\mathrm{PMI}=\\log_2\\dfrac{' + s.f + '\\cdot ' + co.N + '}{' + s.ci + '\\cdot ' + s.cj + '}=' + s.pmi.toFixed(2).replace(MINUS, '-');
+        setTex(formula, src);
+        const vals = have ? [String(s.f), s.expected.toFixed(2), never ? '0' : s.ratio.toFixed(2), sgn(s.pmi), s.ppmi.toFixed(2)] : ['', '', '', '', ''];
+        chips.forEach((c, k) => { c.textContent = vals[k]; });
+        C0.cap(msg || 'Everything here is recomputed from the corpus each time you change a control.');
+      }
+    };
+  });
+
+  /* ============================================================
+     Chapter 8 - going further (optional)
+     ============================================================ */
+  register('ch8', function (C0) {
+    const svg = C0.svg, W = C0.W, H = C0.H, M = C0.M;
+    const miG = el('g', {}, svg), mapG = el('g', {}, svg), pipeG = el('g', {}, svg);
+
+    /* ---- MI as a running total of contributions */
+    const items = PAIRS_C.map((pr) => ({ pr: pr, c: 2 * pr.pij * pr.pmi })).sort((a, b) => b.c - a.c);
+    let cum = 0, maxCum = 0;
+    items.forEach((it) => { it.s = cum; cum += it.c; it.e = cum; maxCum = Math.max(maxCum, cum); });
+    const tx0 = M ? 14 : 40, tx1 = W - (M ? 14 : 40), ty = M ? 130 : 230, th = M ? 40 : 60;
+    const tx = (v) => tx0 + v / maxCum * (tx1 - tx0);
+    el('rect', { x: tx0, y: ty, width: tx1 - tx0, height: th, rx: 6, fill: C.neutral, stroke: C.line }, miG);
+    const segs = items.map((it, k) => {
+      const r = el('rect', { x: Math.min(tx(it.s), tx(it.e)), y: ty, width: Math.abs(tx(it.e) - tx(it.s)), height: th, rx: 2, fill: it.c >= 0 ? C.blue : C.orange, stroke: '#fff', 'stroke-width': 1.5 }, miG);
+      bindTip(r, () => '<b>' + pairName(it.pr) + '</b><br>PMI ' + sgn(it.pr.pmi) + ' bits<br>contributes ' + sgn(it.c) + ' bits (pairs count both ways)');
+      return r;
+    });
+    const runLab = T(miG, W / 2, M ? 70 : 110, '', M ? 34 : 54, C.accent, { 'text-anchor': 'middle', 'font-weight': 800, 'class': 'mono' });
+    T(miG, W / 2, M ? 92 : 140, 'bits so far', M ? 13 : 15, C.muted, { 'text-anchor': 'middle' });
+    const miLine = el('line', { x1: tx(MI), y1: ty - 10, x2: tx(MI), y2: ty + th + 14, stroke: C.ink, 'stroke-width': 3 }, miG);
+    T(miG, tx(MI), ty + th + (M ? 32 : 38), 'MI = ' + MI.toFixed(2), M ? 14 : 17, C.ink, { 'text-anchor': M ? 'end' : 'middle', 'font-weight': 800 });
+    T(miG, tx0, ty + th + (M ? 58 : 76), 'each block = one pair: how often it happens × its PMI', M ? 12 : 14, C.muted);
+    T(miG, tx0, ty + th + (M ? 76 : 98), 'blue adds, orange subtracts', M ? 12 : 14, C.muted);
+
+    /* ---- the real 2-D map from the SVD of the PPMI matrix */
+    const emb = PM.embed(PM.ppmiMatrix(F), [0, 2]);
+    const xs = emb.coords.map((c) => c[0]), ys = emb.coords.map((c) => c[1]);
+    const mx0 = M ? 44 : 70, mx1 = W - (M ? 30 : 60), my0 = M ? 24 : 70, my1 = H - (M ? 74 : 110);
+    const sx = (v) => mx0 + (v - Math.min.apply(null, xs)) / (Math.max.apply(null, xs) - Math.min.apply(null, xs)) * (mx1 - mx0);
+    const sy = (v) => my1 - (v - Math.min.apply(null, ys)) / (Math.max.apply(null, ys) - Math.min.apply(null, ys)) * (my1 - my0);
+    el('rect', { x: mx0 - 14, y: my0 - 14, width: mx1 - mx0 + 28, height: my1 - my0 + 28, rx: 10, fill: '#fcfbf8', stroke: C.line }, mapG);
+    const pts = VOCAB.map((w, i) => ({ w: w, x: sx(xs[i]), y: sy(ys[i]) }));
+    const small = pts.filter((q) => q.x < mx0 + (mx1 - mx0) * 0.3).sort((a, b) => a.y - b.y);
+    let prevLy = -1e9;
+    small.forEach((q) => { q.lx = q.x + 12; q.ly = Math.max(q.y + 4, prevLy + (M ? 14 : 17)); prevLy = q.ly; q.anchor = 'start'; });
+    pts.filter((q) => small.indexOf(q) < 0).sort((a, b) => a.x - b.x).forEach((q, k) => {
+      q.lx = q.x; q.ly = q.y + (k % 2 === 0 ? -14 : 24); q.anchor = 'middle';
+    });
+    const focusW = (w) => w === 'tea' || w === 'strong';
+    const ts = pts.filter((q) => q.w === 'tea')[0], st2 = pts.filter((q) => q.w === 'strong')[0];
+    el('line', { x1: ts.x, y1: ts.y, x2: st2.x, y2: st2.y, stroke: C.accent, 'stroke-width': 3, 'stroke-dasharray': '6 4' }, mapG);
+    pts.forEach((q) => {
+      el('circle', { cx: q.x, cy: q.y, r: M ? 7 : 8, fill: focusW(q.w) ? C.accent : C.ink, 'fill-opacity': 0.88, stroke: '#fff', 'stroke-width': 2 }, mapG);
+      T(mapG, q.lx, q.ly, q.w, M ? 13 : 15, focusW(q.w) ? C.accent : C.ink, { 'text-anchor': q.anchor, 'font-weight': focusW(q.w) ? 800 : 600 });
+    });
+    T(mapG, (mx0 + mx1) / 2, my1 + 34, 'direction of the powerful group →', M ? 12.5 : 14, C.muted, { 'text-anchor': 'middle' });
+    const yl = T(mapG, mx0 - 24, (my0 + my1) / 2, 'direction of the tea group →', M ? 12.5 : 14, C.muted, { 'text-anchor': 'middle' });
+    yl.setAttribute('transform', 'rotate(-90 ' + (mx0 - 20) + ' ' + (my0 + my1) / 2 + ')');
+    T(mapG, W / 2, H - (M ? 22 : 40), 'toy corpus, ten words: real embeddings use millions of words', M ? 12 : 14, C.ink, { 'text-anchor': 'middle', 'font-weight': 700 });
+    T(mapG, W / 2, H - (M ? 6 : 18), 'and hundreds of directions', M ? 12 : 14, C.muted, { 'text-anchor': 'middle' });
+
+    /* ---- pipeline */
+    const boxes = [
+      { t: 'corpus', f: '', kind: 'text' },
+      { t: 'counts', f: '\\text{count}(x,y)', kind: 'F' },
+      { t: 'PMI → PPMI', f: '\\max(\\mathrm{PMI},0)', kind: 'P' },
+      { t: 'word vectors', f: '\\mathrm{PMI}-\\log k', kind: 'E' }
+    ];
+    const bw2 = M ? 160 : 128, bh2 = M ? 132 : 200, pipeBoxes = [];
+    boxes.forEach((b, i) => {
+      const bx2 = M ? 10 + (i % 2) * (bw2 + 20) : (W - 4 * bw2 - 3 * 18) / 2 + i * (bw2 + 18), by2 = M ? 12 + Math.floor(i / 2) * (bh2 + 16) : 170;
+      const g = el('g', {}, pipeG);
+      const r = el('rect', { x: bx2, y: by2, width: bw2, height: bh2, rx: 10, fill: C.card, stroke: C.line, 'stroke-width': 1.5 }, g);
+      T(g, bx2 + bw2 / 2, by2 + 22, b.t, M ? 13 : 15, C.ink, { 'text-anchor': 'middle', 'font-weight': 800 });
+      const mini = el('g', {}, g);
+      const cs = M ? 6.5 : 9.5, gx = bx2 + (bw2 - 10 * cs) / 2, gy = by2 + (M ? 34 : 40);
+      if (b.kind === 'text') {
+        PM.CORPUS.slice(0, M ? 5 : 8).forEach((s, k) => T(mini, bx2 + 10, gy + 8 + k * (M ? 14 : 17), s.length > 17 ? s.slice(0, 16) + '…' : s, M ? 11 : 12, C.muted, { 'class': 'mono' }));
+      } else if (b.kind === 'F' || b.kind === 'P') {
+        const maxF = Math.max.apply(null, F.map((r2) => Math.max.apply(null, r2)));
+        for (let a = 0; a < 10; a++) for (let c = 0; c < 10; c++) {
+          const fill = b.kind === 'F' ? mix('#f4f2ec', C.blue, Math.pow(F[a][c] / maxF, 0.65)) : mix(C.neutral, C.blue, Math.pow(PM.ppmi(PMI_M[a][c]) / PMI_ABS_MAX, 0.8));
+          el('rect', { x: gx + c * cs, y: gy + a * cs, width: cs - 1, height: cs - 1, fill: fill }, mini);
+        }
       } else {
-        setMath(st.chip, 'a = f_{' + pair.a + ',' + pair.b + '} = ' + ct.a + '\\ \\text{(both words co-occur)}', 'a = f_(' + pair.a + ',' + pair.b + ') = ' + ct.a + ' (both)');
+        const ex = PM.embed(PM.ppmiMatrix(F), [0, 2]).coords;
+        const exs = ex.map((c) => c[0]), eys = ex.map((c) => c[1]);
+        const nx = (v) => bx2 + 14 + (v - Math.min.apply(null, exs)) / (Math.max.apply(null, exs) - Math.min.apply(null, exs)) * (bw2 - 28);
+        const ny = (v) => gy + 6 + (1 - (v - Math.min.apply(null, eys)) / (Math.max.apply(null, eys) - Math.min.apply(null, eys))) * (M ? 52 : 84);
+        ex.forEach((c, k) => el('circle', { cx: nx(c[0]), cy: ny(c[1]), r: 4.5, fill: VOCAB[k] === 'tea' || VOCAB[k] === 'strong' ? C.accent : C.ink, 'fill-opacity': 0.85 }, mini));
       }
-    }
-    st.ratioG.setAttribute('opacity', stage === 3 ? 1 : 0);
-    if (stage === 3) {
-      setMath(st.chip, '\\text{ratio} = \\tfrac{\\text{observed}}{\\text{expected}} = \\tfrac{p(x,y)}{p(x)p(y)}, \\quad \\mathrm{PMI} = \\log_2 \\text{ratio}', 'ratio = observed/expected = p(x,y)/(p(x)p(y)),  PMI = log2(ratio)');
-      st.dotEls.forEach(function (d, i) {
-        var local = clamp(p * st.dotEls.length * 1.2 - i, 0, 1);
-        d.setAttribute('r', 5.5 * ease(local));
-      });
-    }
-    cap.textContent = [
-      'Pair (tea, strong): a = 7 both, b = 4 strong-only, c = 9 tea-only, d = 48 neither. Cells sum to N = ' + N + '.',
-      'Under independence we EXPECT E = f_i*f_j/N = 11*16/68 = 2.59. Observed 7 > expected: association!',
-      'Pair (tea, powerful): observed 1 < expected 1.88 - the words REPEL (ratio < 1).',
-      'Every pair gets a dot at log2(obs/exp) = its PMI. Right of the dashed line: association; left: repulsion.'
-    ][stage];
-  }
-
-  /* ============================================================
-     Chapter 4 - the PMI formula, massaged + die example + gauge
-     ============================================================ */
-  register(document.getElementById('ch4'), 'viz4', 'cap4', {
-    def: { render: function (svg, p, cap, changed) { ch4render(svg, p, cap, 0, changed); } },
-    cond1: { render: function (svg, p, cap, changed) { ch4render(svg, p, cap, 1, changed); } },
-    cond2: { render: function (svg, p, cap, changed) { ch4render(svg, p, cap, 2, changed); } },
-    die: { render: function (svg, p, cap, changed) { ch4render(svg, p, cap, 3, changed); } },
-    gauge: { render: function (svg, p, cap, changed) { ch4render(svg, p, cap, 4, changed); } }
-  });
-
-  function ch4render(svg, p, cap, stage, changed) {
-    var st = svg._ch4;
-    if (!st) {
-      svg.innerHTML = '';
-      var f1 = mathBox(svg, 40, 26, 560, 46, 'bigmath');
-      var f2 = mathBox(svg, 40, 80, 560, 34);
-      // pills showing which of the 3 forms is active
-      var pills = [];
-      for (var k = 0; k < 3; k++) {
-        var pr = el('rect', { x: 250 + k * 48, y: 122, width: 38, height: 10, rx: 5, fill: '#efede6', 'class': 'anim' }, svg);
-        pills.push(pr);
-      }
-      // die face (stage 3)
-      var dieG = el('g', { opacity: 0, 'class': 'anim' }, svg);
-      el('rect', { x: 285, y: 160, width: 70, height: 70, rx: 12, fill: '#fff', stroke: C.ink, 'stroke-width': 2.5 }, dieG);
-      [[305, 180], [335, 180], [320, 195], [305, 210], [335, 210]].forEach(function (pp) {
-        el('circle', { cx: pp[0], cy: pp[1], r: 6, fill: C.ink }, dieG);
-      });
-      txt(dieG, 320, 252, 'rolled a 5', { 'font-size': 11, 'text-anchor': 'middle', fill: C.muted });
-      // gauge (stages 3-4)
-      var gG = el('g', { opacity: 0, 'class': 'anim' }, svg);
-      var gcx = 320, gcy = 452, GR = 158;
-      var vMin = -3, vMax = 3.5;
-      function gAng(v) { return (180 - (clamp(v, vMin, vMax) - vMin) / (vMax - vMin) * 180) * Math.PI / 180; }
-      function gPt(v, r) { var a = gAng(v); return [gcx + r * Math.cos(a), gcy - r * Math.sin(a)]; }
-      function arcPath(v1, v2, r) {
-        var p1 = gPt(v1, r), p2 = gPt(v2, r);
-        return 'M ' + p1[0] + ' ' + p1[1] + ' A ' + r + ' ' + r + ' 0 0 1 ' + p2[0] + ' ' + p2[1];
-      }
-      el('path', { d: arcPath(vMin, 0, GR), fill: 'none', stroke: 'rgba(214,69,69,0.25)', 'stroke-width': 16 }, gG);
-      el('path', { d: arcPath(0, vMax, GR), fill: 'none', stroke: 'rgba(47,111,237,0.25)', 'stroke-width': 16 }, gG);
-      el('path', { d: arcPath(vMin, vMax, GR), fill: 'none', stroke: '#efede6', 'stroke-width': 3 }, gG);
-      for (var v = -3; v <= 3; v++) {
-        var t1 = gPt(v, GR - 12), t2 = gPt(v, GR + 10);
-        el('line', { x1: t1[0], y1: t1[1], x2: t2[0], y2: t2[1], stroke: C.muted, 'stroke-width': 1.5 }, gG);
-        var lp = gPt(v, GR + 26);
-        txt(gG, lp[0], lp[1] + 3, (v > 0 ? '+' : '') + v, { 'font-size': 10, fill: C.muted, 'text-anchor': 'middle', 'font-family': 'ui-monospace,monospace' });
-      }
-      txt(gG, gcx, gcy + 22, '0 = independence', { 'font-size': 11, 'text-anchor': 'middle', fill: C.muted });
-      txt(gG, gcx - GR - 6, gcy - 6, 'repulsion', { 'font-size': 10, 'text-anchor': 'end', fill: C.red, 'font-weight': 700 });
-      txt(gG, gcx + GR + 6, gcy - 6, 'association', { 'font-size': 10, fill: C.blue, 'font-weight': 700 });
-      txt(gG, gcx, gcy - GR - 40, 'PMI in bits (log2 of the obs/exp ratio)', { 'font-size': 12, 'text-anchor': 'middle', fill: C.muted, 'font-weight': 700 });
-      var needle = el('line', { x1: gcx, y1: gcy, x2: gcx, y2: gcy - GR, stroke: C.ink, 'stroke-width': 4, 'stroke-linecap': 'round', 'class': 'anim' }, gG);
-      var ghost = el('line', { x1: gcx, y1: gcy, x2: gcx, y2: gcy - GR, stroke: C.red, 'stroke-width': 2.5, 'stroke-dasharray': '6 4', opacity: 0, 'class': 'anim' }, gG);
-      el('circle', { cx: gcx, cy: gcy, r: 8, fill: C.ink }, gG);
-      var needleLab = txt(gG, gcx, gcy - GR - 16, '', { 'font-size': 13, 'text-anchor': 'middle', 'font-weight': 800, fill: C.ink });
-      st = svg._ch4 = { f1: f1, f2: f2, pills: pills, dieG: dieG, gG: gG, needle: needle, ghost: ghost, needleLab: needleLab, gPt: gPt, gcy: gcy, GR: GR, stage: -1 };
-    }
-    if (st.stage !== stage) {
-      st.stage = stage;
-      var texs = [
-        ['\\mathrm{PMI}(x,y) = \\log_2 \\tfrac{p(x,y)}{p(x)\\,p(y)}', 'PMI(x,y) = log2( p(x,y) / (p(x) p(y)) )',
-         '\\text{in counts: } \\log_2 \\tfrac{f(x,y)\\,N}{f(x)\\,f(y)}', 'in counts: log2( f(x,y)*N / (f(x)*f(y)) )'],
-        ['\\mathrm{PMI}(x,y) = \\log_2 \\tfrac{p(x\\,|\\,y)}{p(x)}', 'PMI(x,y) = log2( p(x|y) / p(x) )',
-         '\\text{chain rule: } p(x,y) = p(x\\,|\\,y)\\,p(y) \\text{ cancels one } p(y)', 'chain rule: p(x,y) = p(x|y) p(y) cancels one p(y)'],
-        ['\\mathrm{PMI}(x,y) = \\log_2 \\tfrac{p(y\\,|\\,x)}{p(y)}', 'PMI(x,y) = log2( p(y|x) / p(y) )',
-         '\\text{symmetric: } \\mathrm{PMI}(x,y) = \\mathrm{PMI}(y,x)', 'symmetric: PMI(x,y) = PMI(y,x)'],
-        ['\\log_2 \\tfrac{1/2}{1/6} = \\log_2 3 \\approx \\mathbf{1.58}\\ \\text{bits}', 'log2( (1/2) / (1/6) ) = log2 3 = 1.58 bits',
-         'P(\\text{5} \\mid \\text{result} > 4) = \\tfrac12 \\text{ vs } P(5) = \\tfrac16', 'P(5 | result>4) = 1/2  vs  P(5) = 1/6'],
-        ['\\mathrm{PMI}(\\text{tea}, \\text{strong}) \\approx +1.44, \\quad \\mathrm{PMI}(\\text{tea}, \\text{powerful}) \\approx -0.91', 'PMI(tea,strong) = +1.44,  PMI(tea,powerful) = -0.91',
-         '\\text{bits: each doubling of the ratio adds } 1 \\text{ bit}', 'bits: each doubling of the ratio adds 1 bit']
-      ];
-      setMath(st.f1, texs[stage][0], texs[stage][1]);
-      setMath(st.f2, texs[stage][2], texs[stage][3]);
-      st.pills.forEach(function (pr, k) {
-        pr.setAttribute('fill', stage <= 2 && k === stage ? C.accent : '#efede6');
-      });
-    }
-    st.dieG.setAttribute('opacity', stage === 3 ? clamp((p - 0.2) / 0.5, 0, 1) : 0);
-    var showGauge = stage >= 3;
-    st.gG.setAttribute('opacity', showGauge ? 1 : 0);
-    if (showGauge) {
-      var v = stage === 3 ? DIE.pmi * ease(clamp(p, 0, 1)) : PMI.pmi(F, IDX.tea, IDX.strong);
-      var tip = st.gPt(v, st.GR - 4);
-      st.needle.setAttribute('x2', tip[0]); st.needle.setAttribute('y2', tip[1]);
-      st.needleLab.setAttribute('x', tip[0]); st.needleLab.setAttribute('y', tip[1] - 10);
-      st.needleLab.textContent = (v > 0 ? '+' : '') + v.toFixed(2) + ' bits';
-      if (stage === 4) {
-        var vg = PMI.pmi(F, IDX.tea, IDX.powerful);
-        var tipg = st.gPt(vg, st.GR - 4);
-        st.ghost.setAttribute('x2', tipg[0]); st.ghost.setAttribute('y2', tipg[1]);
-        st.ghost.setAttribute('opacity', clamp((p - 0.4) / 0.4, 0, 1));
-      } else st.ghost.setAttribute('opacity', 0);
-    }
-    cap.textContent = [
-      'PMI(x,y) = log2( p(x,y) / (p(x)p(y)) ) - the log of the obs/exp ratio.',
-      'Massage: p(x,y) = p(x|y) p(y), so PMI = log2( p(x|y) / p(x) ): how much likelier is x GIVEN y?',
-      'Symmetrically PMI = log2( p(y|x) / p(y) ). Same number - PMI(x,y) = PMI(y,x).',
-      'Die: P(5 | result>4) = 1/2 but P(5) = 1/6, so PMI = log2(3) = +1.58 bits. Needle swings right.',
-      'The gauge in bits: tea x strong = +1.44 (blue side), tea x powerful = -0.91 (red, dashed). 0 = independence.'
-    ][stage];
-  }
-
-  /* ============================================================
-     Chapter 5 - reading PMI values: bars + PPMI clipping
-     ============================================================ */
-  var ch5pairs = (function () {
-    var top = PAIRS_PMI.slice(0, 7);
-    var neg = PAIRS_PMI.filter(function (pr) { return pr.pmi < 0; });
-    neg.forEach(function (pr) { if (top.indexOf(pr) === -1) top.push(pr); });
-    top.sort(function (a, b) { return b.pmi - a.pmi; });
-    return top.slice(0, 8);
-  })();
-
-  register(document.getElementById('ch5'), 'viz5', 'cap5', {
-    bars: { render: function (svg, p, cap, changed) { ch5render(svg, p, cap, 0, changed); } },
-    signs: { render: function (svg, p, cap, changed) { ch5render(svg, p, cap, 1, changed); } },
-    rare: { render: function (svg, p, cap, changed) { ch5render(svg, p, cap, 2, changed); } },
-    ppmi: { render: function (svg, p, cap, changed) { ch5render(svg, p, cap, 3, changed); } }
-  });
-
-  function ch5render(svg, p, cap, stage, changed) {
-    var st = svg._ch5;
-    if (!st) {
-      svg.innerHTML = '';
-      hatchDefs(svg, 'hatch5', C.red);
-      var zeroX = 250, scale = 62; // px per bit
-      var y0 = 88, bh = 28, gap = 18;
-      var zonePos = el('rect', { x: zeroX, y: 70, width: 330, height: y0 - 70 + ch5pairs.length * (bh + gap), fill: 'rgba(47,111,237,0.05)', opacity: 0, 'class': 'anim' }, svg);
-      var zoneNeg = el('rect', { x: 40, y: 70, width: zeroX - 40, height: y0 - 70 + ch5pairs.length * (bh + gap), fill: 'rgba(214,69,69,0.05)', opacity: 0, 'class': 'anim' }, svg);
-      var barsG = el('g', {}, svg);
-      var barEls = [], labEls = [], valEls = [];
-      ch5pairs.forEach(function (pr, i) {
-        var y = y0 + i * (bh + gap);
-        txt(svg, zeroX - 10, y + bh / 2 + 4, pr.a + ' × ' + pr.b, { 'font-size': 11.5, 'text-anchor': 'end', fill: C.ink });
-        barEls.push(el('rect', { x: zeroX, y: y, width: 0, height: bh, rx: 5, fill: pr.pmi > 0 ? C.blue : C.red, 'class': 'anim' }, barsG));
-        valEls.push(txt(barsG, zeroX, y + bh / 2 + 4, '', { 'font-size': 11, 'font-family': 'ui-monospace,monospace', fill: C.muted }));
-        labEls.push({ y: y, pr: pr });
-      });
-      // -inf hatched bar for the never-seen pair (stage 2 overlay)
-      var infY = y0 + ch5pairs.length * (bh + gap);
-      var infG = el('g', { opacity: 0, 'class': 'anim' }, svg);
-      txt(infG, zeroX - 10, infY + bh / 2 + 4, 'storm × tea', { 'font-size': 11.5, 'text-anchor': 'end', fill: C.ink });
-      var infBar = el('rect', { x: 40, y: infY, width: zeroX - 40, height: bh, rx: 5, fill: 'url(#hatch5)', stroke: C.red, 'stroke-width': 1.2 }, infG);
-      txt(infG, 46, infY + bh / 2 + 4, 'f = 0  →  log(0) = −∞', { 'font-size': 11, fill: C.red, 'font-weight': 700 });
-      // axis
-      el('line', { x1: zeroX, y1: 66, x2: zeroX, y2: infY + bh + 10, stroke: C.ink, 'stroke-width': 2 }, svg);
-      for (var v = -3; v <= 3; v++) {
-        var x = zeroX + v * scale;
-        el('line', { x1: x, y1: infY + bh + 5, x2: x, y2: infY + bh + 10, stroke: C.muted, 'stroke-width': 1.5 }, svg);
-        txt(svg, x, infY + bh + 23, (v > 0 ? '+' : '') + v, { 'font-size': 9.5, 'text-anchor': 'middle', fill: C.muted, 'font-family': 'ui-monospace,monospace' });
-      }
-      txt(svg, zeroX, infY + bh + 40, 'PMI, bits (log2)', { 'font-size': 11, 'text-anchor': 'middle', fill: C.muted });
-      var notePos = txt(svg, zeroX + 6, 60, '> 0 association', { 'font-size': 11, fill: C.blue, 'font-weight': 700, opacity: 0, 'class': 'anim' });
-      var noteZero = txt(svg, zeroX, 44, '= 0 independence', { 'font-size': 10, 'text-anchor': 'middle', fill: C.muted, opacity: 0, 'class': 'anim' });
-      var noteNeg = txt(svg, zeroX - 6, 60, '< 0 repulsion', { 'font-size': 11, 'text-anchor': 'end', fill: C.red, 'font-weight': 700, opacity: 0, 'class': 'anim' });
-      var chip = mathBox(svg, 380, 14, 250, 30, 'midmath');
-      st = svg._ch5 = { barEls: barEls, valEls: valEls, zeroX: zeroX, scale: scale, infG: infG, zonePos: zonePos, zoneNeg: zoneNeg, notePos: notePos, noteZero: noteZero, noteNeg: noteNeg, chip: chip, stage: -1 };
-    }
-    var n = ch5pairs.length;
-    ch5pairs.forEach(function (pr, i) {
-      var local = stage === 0 ? clamp(p * n * 1.25 - i, 0, 1) : 1; // bars grow in once, on step 0
-      var val = stage === 3 ? Math.max(pr.pmi, 0) * ease(clamp((p - 0.15) / 0.6, 0, 1)) : pr.pmi;
-      var w = Math.abs(val) * st.scale * local;
-      var b = st.barEls[i];
-      if (val >= 0) { b.setAttribute('x', st.zeroX); } else { b.setAttribute('x', st.zeroX - w); }
-      b.setAttribute('width', w);
-      b.setAttribute('fill', stage === 3 && pr.pmi < 0 ? '#b9b2a4' : (pr.pmi > 0 ? C.blue : C.red));
-      var vv = st.valEls[i];
-      var shown = stage === 3 && pr.pmi < 0 ? '0 (clipped)' : (pr.pmi > 0 ? '+' : '') + pr.pmi.toFixed(2);
-      vv.textContent = shown;
-      vv.setAttribute('x', val >= 0 ? st.zeroX + w + 6 : st.zeroX - w - 6);
-      vv.setAttribute('text-anchor', val >= 0 ? 'start' : 'end');
+      const fb = mathBox(g, bx2 + 4, by2 + bh2 - (M ? 30 : 38), bw2 - 8, 30, 'c');
+      if (b.f) setTex(fb, b.f);
+      pipeBoxes.push(r);
     });
-    st.infG.setAttribute('opacity', stage === 2 ? 1 : 0);
-    var notes = stage === 1 ? 1 : 0;
-    st.zonePos.setAttribute('opacity', notes); st.zoneNeg.setAttribute('opacity', notes);
-    st.notePos.setAttribute('opacity', notes); st.noteZero.setAttribute('opacity', notes); st.noteNeg.setAttribute('opacity', notes);
-    if (st.stage !== stage) {
-      st.stage = stage;
-      if (stage === 2) setMath(st.chip, '\\text{rare pair } f=1:\\ \\mathrm{PMI} = +3.09 \\text{ bits — inflated!}', 'rare pair f=1: PMI = +3.09 bits - inflated!');
-      else if (stage === 3) setMath(st.chip, '\\mathrm{PPMI} = \\max(\\mathrm{PMI}, 0)', 'PPMI = max(PMI, 0)');
-      else setMath(st.chip, '', '');
-    }
-    cap.textContent = [
-      'One bar per observed pair, PMI in bits. The TOP bar (powerful x storm, +3.09) occurred only once...',
-      'Signs: > 0 association, = 0 independence, < 0 repulsion. log2 => units are bits: +1 bit = twice as likely as chance.',
-      'Caveat: rare events inflate PMI (small p(x) => big 1/p(x)), and f = 0 gives log(0) = -inf (hatched). Negatives on rare events are unreliable.',
-      'PPMI = max(PMI, 0): red bars flatten onto the zero line. What survives is a non-negative association matrix.'
-    ][stage];
-  }
-
-  /* ============================================================
-     Chapter 6 - worked example: full PMI / PPMI heatmap
-     ============================================================ */
-  register(document.getElementById('ch6'), 'viz6', 'cap6', {
-    heat: { render: function (svg, p, cap, changed) { ch6render(svg, p, cap, 0, changed); } },
-    top: { render: function (svg, p, cap, changed) { ch6render(svg, p, cap, 1, changed); } },
-    clipped: { render: function (svg, p, cap, changed) { ch6render(svg, p, cap, 2, changed); } },
-    read: { render: function (svg, p, cap, changed) { ch6render(svg, p, cap, 3, changed); } }
-  });
-
-  function ch6render(svg, p, cap, stage, changed) {
-    var st = svg._ch6;
-    if (!st) {
-      svg.innerHTML = '';
-      hatchDefs(svg, 'hatch6', C.red);
-      var cells = el('g', {}, svg);
-      var cellEls = [];
-      for (var i = 0; i < GV; i++) for (var j = 0; j < GV; j++) {
-        var xy = gridXY(i, j);
-        cellEls.push(el('rect', {
-          x: xy[0], y: xy[1], width: CELL - 2, height: CELL - 2, rx: 4,
-          fill: pmiColor(PMI_M[i][j], 'url(#hatch6)'), stroke: '#fff', 'stroke-width': 1, opacity: 0, 'class': 'anim'
-        }, cells));
-      }
-      var textG = el('g', {}, svg);
-      var lg = el('g', {}, svg);
-      heatLabels(svg, lg);
-      // legend
-      var lx = GX, ly = GY + GV * CELL + 34, lw = GV * CELL;
-      for (var s = 0; s < 60; s++) {
-        var v = -PMI_ABS_MAX + (s / 59) * 2 * PMI_ABS_MAX;
-        el('rect', { x: lx + s / 60 * lw, y: ly, width: lw / 60 + 1, height: 10, fill: pmiColor(v) }, lg);
-      }
-      txt(lg, lx, ly + 24, '−∞ / strongly negative', { 'font-size': 9.5, fill: C.red });
-      txt(lg, lx + lw / 2, ly + 24, '0 (independence)', { 'font-size': 9.5, 'text-anchor': 'middle', fill: C.muted });
-      txt(lg, lx + lw, ly + 24, '+3.2 bits association', { 'font-size': 9.5, 'text-anchor': 'end', fill: C.blue });
-      var title = mathBox(svg, 130, 8, 380, 30, 'midmath');
-      var chip = mathBox(svg, 400, 506, 230, 34, 'bigmath');
-      st = svg._ch6 = { cellEls: cellEls, textG: textG, title: title, chip: chip, stage: -1 };
-    }
-    var total = GV * GV;
-    st.cellEls.forEach(function (c, k) {
-      var i = Math.floor(k / GV), j = k % GV;
-      var local = stage === 0 ? clamp(p * total * 1.12 - k, 0, 1) : 1; // reveal once, on step 0
-      c.setAttribute('opacity', ease(local));
-      // stage 2 switches to PPMI colors; fill transition is CSS-animated via .anim
-      c.setAttribute('fill', pmiColor(stage === 2 ? PPMI_M[i][j] : PMI_M[i][j], 'url(#hatch6)'));
-    });
-    if (st.stage !== stage) {
-      st.stage = stage;
-      st.textG.innerHTML = '';
-      if (stage === 0) setMath(st.title, '\\mathrm{PMI}(x,y) = \\log_2 \\tfrac{f_{xy} N}{f_x f_y} \\text{, matrix view}', 'PMI(x,y) = log2( f_xy*N / (f_x*f_y) ), matrix view');
-      if (stage === 1) {
-        setMath(st.title, '\\text{strongest cells labeled (bits)}', 'strongest cells labeled (bits)');
-        var top = PAIRS_PMI.slice(0, 4).concat(PAIRS_PMI.filter(function (pr) { return pr.a === 'tea' && pr.b === 'powerful'; }));
-        top.forEach(function (pr) {
-          var xy = gridXY(pr.i, pr.j);
-          txt(st.textG, xy[0] + CELL / 2 - 1, xy[1] + CELL / 2 + 4, (pr.pmi > 0 ? '+' : '') + pr.pmi.toFixed(2), {
-            'font-size': 9.5, 'text-anchor': 'middle', 'font-weight': 800,
-            fill: Math.abs(pr.pmi) / PMI_ABS_MAX > 0.4 ? '#fff' : C.ink, 'font-family': 'ui-monospace,monospace'
-          });
+    const caps = [
+      'Each block is one pair; widths add up to the mutual information of the corpus.',
+      'A real 2-D picture of the ten words, computed from the PPMI matrix. The words fall into two groups.',
+      'The pipeline behind word vectors: counts, then PMI, then compressed vectors. word2vec factorizes a PMI matrix shifted by \\(\\log k\\).',
+      'The same pipeline as code. The Python reproduces the counts, expected values and PMI of this page.'
+    ];
+    return {
+      render: function (stage, p, q) {
+        C0.ctl.classList.remove('on');
+        show(miG, stage === 0); show(mapG, stage === 1); show(pipeG, stage >= 2);
+        const k = stage === 0 ? Math.max(1, Math.ceil(q * items.length)) : items.length;
+        segs.forEach((s, i) => s.setAttribute('opacity', i < k ? 1 : 0));
+        runLab.textContent = (k > 0 ? sgn(items[k - 1].e) : '0.00').replace('+', '');
+        pipeBoxes.forEach((r, i) => {
+          const on = (stage === 2 && i === 3) || (stage === 3 && (i === 1 || i === 2));
+          r.setAttribute('stroke', on ? C.accent : C.line); r.setAttribute('stroke-width', on ? 4 : 1.5);
         });
+        C0.cap(caps[stage]);
       }
-      if (stage === 2) setMath(st.title, '\\mathrm{PPMI} = \\max(\\mathrm{PMI}, 0): \\text{ red cells clipped to 0}', 'PPMI = max(PMI, 0): red cells clipped to 0');
-      if (stage === 3) {
-        setMath(st.title, '\\text{read the matrix}', 'read the matrix');
-        setMath(st.chip, '\\mathrm{PMI}(\\text{tea},\\text{strong}) = +1.44', 'PMI(tea,strong) = +1.44 bits');
-      } else setMath(st.chip, '', '');
-    }
-    cap.textContent = [
-      'The full 10x10 PMI matrix computed live: red = repulsion, neutral = 0, blue = association (bits). Hatched = never co-occurred (-inf).',
-      'Labeled cells: powerful x storm +3.09 (f=1, inflated), powerful x computer +2.67, powerful x engine +2.35, tea x strong +1.44; tea x powerful -0.91.',
-      'PPMI view: every negative (and -inf) cell clipped to neutral. A sparse non-negative association matrix.',
-      'PMI(tea, strong) = +1.44 bits; PPMI(tea, powerful) = 0. This term-term matrix is the classic alternative to tf-idf.'
-    ][stage];
-  }
-
-  /* ============================================================
-     Chapter 7 - PMI vs MI: event bubbles + running E[PMI]
-     ============================================================ */
-  var ch7pairs = PAIRS.slice(); // all observed pairs by count
-  var ch7order = PAIRS.slice().sort(function (a, b) { return b.pij - a.pij; }); // consumption order
-
-  register(document.getElementById('ch7'), 'viz7', 'cap7', {
-    bubbles: { render: function (svg, p, cap, changed) { ch7render(svg, p, cap, 0, changed); } },
-    expect: { render: function (svg, p, cap, changed) { ch7render(svg, p, cap, 1, changed); } },
-    running: { render: function (svg, p, cap, changed) { ch7render(svg, p, cap, 2, changed); } },
-    result: { render: function (svg, p, cap, changed) { ch7render(svg, p, cap, 3, changed); } }
+    };
   });
-
-  function ch7render(svg, p, cap, stage, changed) {
-    var st = svg._ch7;
-    if (!st) {
-      svg.innerHTML = '';
-      var rng = PMI.mulberry32(77);
-      var bubG = el('g', {}, svg);
-      var panelG = el('g', {}, svg);
-      el('rect', { x: 424, y: 84, width: 196, height: 380, rx: 10, fill: C.card, stroke: C.line }, panelG);
-      txt(panelG, 522, 108, 'running  Σ p·PMI', { 'font-size': 12, 'text-anchor': 'middle', 'font-weight': 700, fill: C.ink });
-      var readout = txt(panelG, 522, 160, '0.00', { 'font-size': 30, 'text-anchor': 'middle', 'font-weight': 800, fill: C.accent, 'font-family': 'ui-monospace,monospace' });
-      txt(panelG, 522, 180, 'bits so far', { 'font-size': 10, 'text-anchor': 'middle', fill: C.muted });
-      // track 0..MI
-      el('rect', { x: 444, y: 210, width: 156, height: 14, rx: 7, fill: '#efede6', stroke: C.line }, panelG);
-      var fill = el('rect', { x: 444, y: 210, width: 0, height: 14, rx: 7, fill: C.accent, 'class': 'anim' }, panelG);
-      var miTick = el('line', { x1: 444 + 156, y1: 204, x2: 444 + 156, y2: 230, stroke: C.ink, 'stroke-width': 2.5 }, panelG);
-      txt(panelG, 444 + 156, 246, 'MI = ' + MI.toFixed(2), { 'font-size': 10, 'text-anchor': 'end', fill: C.ink, 'font-weight': 700 });
-      txt(panelG, 444, 246, '0', { 'font-size': 10, fill: C.muted });
-      var formula = mathBox(panelG, 436, 280, 180, 60);
-      var consumedLab = txt(panelG, 522, 420, '', { 'font-size': 11, 'text-anchor': 'middle', fill: C.muted, 'font-family': 'ui-monospace,monospace' });
-      // bubbles
-      var maxPij = ch7order[0].pij;
-      var bubEls = [];
-      ch7pairs.forEach(function (pr) {
-        var bx = 52 + rng() * 330, by = 96 + rng() * 380;
-        var r = 7 + Math.sqrt(pr.pij / maxPij) * 30;
-        var g = el('g', {}, bubG);
-        var ring = el('circle', { cx: bx, cy: by, r: r + 4, fill: 'none', stroke: C.accent, 'stroke-width': 3, opacity: 0, 'class': 'anim' }, g);
-        var c = el('circle', { cx: bx, cy: by, r: 0, fill: pr.pmi > 0 ? C.blue : C.red, 'fill-opacity': 0.75, stroke: '#fff', 'stroke-width': 1.5, 'class': 'anim' }, g);
-        var t = txt(g, bx, by + 3.5, pr.a.slice(0, 4) + '·' + pr.b.slice(0, 4), { 'font-size': 8.5, 'text-anchor': 'middle', fill: '#fff', 'font-weight': 700, opacity: 0, 'class': 'anim' });
-        bubEls.push({ g: g, c: c, ring: ring, t: t, r: r, pr: pr, bx: bx, by: by });
-      });
-      txt(svg, 210, 60, 'bubble area ∝ p(x,y)   ·   color = sign of PMI', { 'font-size': 12, 'text-anchor': 'middle', fill: C.muted });
-      st = svg._ch7 = { bubEls: bubEls, readout: readout, fill: fill, formula: formula, consumedLab: consumedLab, stage: -1 };
-    }
-    var n = st.bubEls.length;
-    // consumption progress: 0 bubbles at stage 0, fills up through stages 1-2, all at stage 3
-    var kMax = stage === 0 ? 0 : stage === 1 ? ease(clamp(p, 0, 1)) : stage === 2 ? clamp(p, 0, 1) : 1;
-    var k = Math.floor(kMax * n);
-    // Each bubble is an unordered pair {x,y}; its probability mass is 2*p(x,y)
-    // because the symmetric joint distribution counts (x,y) and (y,x) separately.
-    // Then sum over bubbles of mass*PMI equals MI exactly.
-    st.bubEls.forEach(function (b, i) {
-      var local = stage === 0 ? clamp(p * n * 1.25 - i, 0, 1) : 1; // entrance once, on step 0
-      b.c.setAttribute('r', b.r * ease(local));
-      b.t.setAttribute('opacity', b.r * ease(local) > 17 ? 0.95 : 0);
-      var consumed = i < k && stage >= 1;
-      b.ring.setAttribute('opacity', consumed ? 1 : 0);
-    });
-    // running sum ordered by pij desc, like the visual absorption
-    var running = 0;
-    if (stage >= 1) {
-      for (var q = 0; q < k; q++) running += 2 * ch7order[q].pij * ch7order[q].pmi;
-      st.readout.textContent = (running > 0 ? '+' : '') + running.toFixed(2);
-      st.fill.setAttribute('width', clamp(running / MI, 0, 1) * 156);
-      st.consumedLab.textContent = k + ' / ' + n + ' events absorbed';
-    } else {
-      st.readout.textContent = '0.00';
-      st.fill.setAttribute('width', 0);
-      st.consumedLab.textContent = '';
-    }
-    if (st.stage !== stage) {
-      st.stage = stage;
-      if (stage === 1) setMath(st.formula, 'I(X,Y) = \\mathbb{E}[\\mathrm{PMI}] = \\textstyle\\sum p(x,y)\\,\\mathrm{PMI}(x,y)', 'I(X,Y) = E[PMI] = sum p(x,y)*PMI(x,y)');
-      else if (stage === 2 || stage === 3) setMath(st.formula, 'I(X,Y) = \\textstyle\\sum_{x,y} p(x,y) \\log_2 \\tfrac{p(x,y)}{p(x)p(y)}', 'I(X,Y) = sum p(x,y) * log2( p(x,y)/(p(x)p(y)) )');
-      else setMath(st.formula, '', '');
-    }
-    if (stage === 3) st.readout.textContent = '+' + MI.toFixed(2);
-    cap.textContent = [
-      'Each bubble = one observed pair. Area = p(x,y), blue = positive PMI, red = negative. Rare pairs are small.',
-      'MI = E[PMI] = sum p(x,y)*PMI(x,y): absorb bubbles (largest p first) into the running sum...',
-      'The running weighted sum converges as more events are absorbed - positives and negatives mix.',
-      'Final: MI = +' + MI.toFixed(2) + ' bits for the toy corpus. MI >= 0 always; PMI per pair can be negative.'
-    ][stage];
-  }
-
-  /* ============================================================
-     Chapter 8 - PMI in NLP practice: pipeline + embeddings
-     ============================================================ */
-  register(document.getElementById('ch8'), 'viz8', 'cap8', {
-    pipeline: { render: function (svg, p, cap, changed) { ch8render(svg, p, cap, 0, changed); } },
-    code: { render: function (svg, p, cap, changed) { ch8render(svg, p, cap, 1, changed); } },
-    embed: { render: function (svg, p, cap, changed) { ch8render(svg, p, cap, 2, changed); } }
-  });
-
-  function ch8render(svg, p, cap, stage, changed) {
-    var st = svg._ch8;
-    if (!st) {
-      svg.innerHTML = '';
-      var pw = 176, ph = 190, py = 130;
-      var panelsG = [];
-      var p1 = panel(svg, 24, py, pw, ph, '1 · toy corpus');
-      var p2 = panel(svg, 232, py, pw, ph, '2 · counts F');
-      var p3 = panel(svg, 440, py, pw, ph, '3 · PPMI matrix');
-      // panel 1: text lines
-      PMI.CORPUS.slice(0, 7).forEach(function (s, i) {
-        txt(p1, 34, py + 40 + i * 20, (s.length > 24 ? s.slice(0, 23) + '…' : s), { 'font-size': 9.5, fill: '#33404f', 'font-family': 'ui-monospace,monospace' });
-      });
-      txt(p1, 34, py + ph - 12, '… 21 sentences, window ±3', { 'font-size': 9, fill: C.muted });
-      // panel 2: mini count heatmap
-      var m0x = 244, m0y = py + 34, mc = 15.2;
-      for (var i = 0; i < GV; i++) for (var j = 0; j < GV; j++) {
-        el('rect', { x: m0x + j * mc, y: m0y + i * mc, width: mc - 1, height: mc - 1, fill: countColor(F[i][j], MAXF) }, p2);
-      }
-      txt(p2, 244 + GV * mc / 2, py + ph - 12, 'f_ij counts, N = ' + N, { 'font-size': 9, 'text-anchor': 'middle', fill: C.muted });
-      // panel 3: mini PPMI heatmap
-      for (var a = 0; a < GV; a++) for (var b = 0; b < GV; b++) {
-        el('rect', { x: 452 + b * mc, y: py + 34 + a * mc, width: mc - 1, height: mc - 1, fill: pmiColor(PPMI_M[a][b]) }, p3);
-      }
-      txt(p3, 452 + GV * mc / 2, py + ph - 12, 'PPMI = max(PMI, 0)', { 'font-size': 9, 'text-anchor': 'middle', fill: C.muted });
-      // arrows
-      var arrG = el('g', {}, svg);
-      [[200, 232], [408, 440]].forEach(function (aa) {
-        el('line', { x1: aa[0], y1: py + ph / 2, x2: aa[1] - 4, y2: py + ph / 2, stroke: C.accent, 'stroke-width': 3 }, arrG);
-        el('path', { d: 'M ' + aa[1] + ' ' + (py + ph / 2) + ' l -9 -6 l 0 12 z', fill: C.accent }, arrG);
-      });
-      // embeddings scatter (stage 2)
-      var embG = el('g', { opacity: 0, 'class': 'anim' }, svg);
-      el('rect', { x: 24, y: 356, width: 592, height: 180, rx: 10, fill: C.card, stroke: C.line }, embG);
-      txt(embG, 320, 378, '4 · embeddings: SVD of the PPMI matrix (or SGNS ≈ implicit factorization, Levy & Goldberg 2014)', { 'font-size': 11.5, 'text-anchor': 'middle', 'font-weight': 700, fill: C.ink });
-      var rng = PMI.mulberry32(2024);
-      var wordPos = {};
-      VOCAB.forEach(function (w) {
-        // strong and tea deliberately land close; powerful/storm far away
-        if (w === 'strong') wordPos[w] = [300, 440];
-        else if (w === 'tea') wordPos[w] = [336, 452];
-        else if (w === 'powerful') wordPos[w] = [520, 470];
-        else if (w === 'storm') wordPos[w] = [540, 430];
-        else wordPos[w] = [60 + rng() * 200, 410 + rng() * 100];
-        var d = el('circle', { cx: wordPos[w][0], cy: wordPos[w][1], r: 7, fill: w === 'tea' || w === 'strong' ? C.accent : (w === 'powerful' || w === 'storm' ? C.red : C.blue), 'fill-opacity': 0.85, stroke: '#fff', 'stroke-width': 1.5 }, embG);
-        txt(embG, wordPos[w][0], wordPos[w][1] + 22, w, { 'font-size': 10, 'text-anchor': 'middle', fill: C.ink, 'font-weight': 700 });
-      });
-      var link = el('line', { x1: wordPos.strong[0], y1: wordPos.strong[1], x2: wordPos.tea[0], y2: wordPos.tea[1], stroke: C.accent, 'stroke-width': 3, 'stroke-dasharray': '6 4' }, embG);
-      txt(embG, (wordPos.strong[0] + wordPos.tea[0]) / 2, (wordPos.strong[1] + wordPos.tea[1]) / 2 - 12, 'close: PMI +1.44', { 'font-size': 10, 'text-anchor': 'middle', fill: C.accent, 'font-weight': 700 });
-      var panelRects = [p1.firstChild, p2.firstChild, p3.firstChild];
-      st = svg._ch8 = { panels: panelRects, embG: embG, stage: -1 };
-    }
-    // highlight one pipeline stage per step; panels persist, only strokes change
-    st.panels.forEach(function (r, i) {
-      var on = (stage === 0 && false) || stage === 1 && i === 1 || stage === 2 && i === 2;
-      r.setAttribute('stroke', on ? C.accent : C.line);
-      r.setAttribute('stroke-width', on ? 3 : 1);
-    });
-    st.embG.setAttribute('opacity', stage === 2 ? clamp((p - 0.3) / 0.5, 0, 1) : 0);
-    cap.textContent = [
-      'The whole pipeline: toy corpus -> windowed count matrix F -> PPMI matrix. Everything on this page is this pipeline, computed live.',
-      'In Python: Counter + numpy over a sliding window; PMI = log2(P/N outer product), PPMI = clip at 0 (see the code).',
-      'SGNS/word2vec ≈ implicit factorization of the (shifted) PMI matrix: associated words end up close in embedding space.'
-    ][stage];
-  }
 
   /* ============================================================
      Chapter 9 - recap
      ============================================================ */
-  register(document.getElementById('ch9'), 'viz9', 'cap9', {
-    formulas: { render: function (svg, p, cap, changed) { ch9render(svg, p, cap, 0, changed); } },
-    caveats: { render: function (svg, p, cap, changed) { ch9render(svg, p, cap, 1, changed); } },
-    summary: { render: function (svg, p, cap, changed) { ch9render(svg, p, cap, 2, changed); } }
+  register('ch9', function (C0) {
+    const svg = C0.svg, W = C0.W, H = C0.H, M = C0.M;
+    const recG = el('g', {}, svg), advG = el('g', {}, svg);
+    const ch = M ? 88 : 130, gapY = M ? 12 : 22, y0 = M ? 14 : 40;
+    const recipe = [
+      ['1', 'Count', '\\text{count}(\\text{tea},\\text{strong}) = ' + TS.f],
+      ['2', 'Compare with chance', '\\text{expected}=\\dfrac{' + TS.ci + '\\cdot ' + TS.cj + '}{' + N + '}\\approx ' + TS.expected.toFixed(2)],
+      ['3', 'Take the logarithm', '\\mathrm{PMI}=\\log_2\\dfrac{' + TS.f + '}{' + TS.expected.toFixed(2) + '}\\approx ' + TS.pmi.toFixed(2).replace(MINUS, '-')]
+    ];
+    recipe.forEach((r, i) => {
+      const y = y0 + i * (ch + gapY);
+      el('rect', { x: 10, y: y, width: W - 20, height: ch, rx: 12, fill: C.card, stroke: C.line }, recG);
+      el('circle', { cx: 38, cy: y + (M ? 24 : 34), r: M ? 14 : 18, fill: C.accent }, recG);
+      T(recG, 38, y + (M ? 29 : 40), r[0], M ? 16 : 20, '#fff', { 'text-anchor': 'middle', 'font-weight': 800 });
+      T(recG, 66 + (M ? 0 : 6), y + (M ? 30 : 40), r[1], M ? 15 : 20, C.ink, { 'font-weight': 800 });
+      setTex(mathBox(recG, 20, y + (M ? 40 : 56), W - 40, ch - (M ? 42 : 60), 'big c'), r[2]);
+    });
+    const cards = [
+      ['A high score and a decent count', 'a candidate for your glossary', C.blue, '✓'],
+      ['A high score on 1–2 sightings', 'be suspicious (one-off pairs)', C.orange, '!'],
+      ['A negative score on a small count', 'unreliable: look at more text', C.grey, '?']
+    ];
+    cards.forEach((c, i) => {
+      const y = y0 + i * (ch + gapY);
+      el('rect', { x: 10, y: y, width: W - 20, height: ch, rx: 12, fill: C.card, stroke: c[2], 'stroke-width': 2 }, advG);
+      el('circle', { cx: 40, cy: y + ch / 2, r: M ? 16 : 22, fill: c[2] }, advG);
+      T(advG, 40, y + ch / 2 + (M ? 6 : 8), c[3], M ? 18 : 26, '#fff', { 'text-anchor': 'middle', 'font-weight': 800 });
+      T(advG, 74, y + ch / 2 - 4, c[0], M ? 14 : 19, C.ink, { 'font-weight': 800 });
+      T(advG, 74, y + ch / 2 + (M ? 18 : 26), c[1], M ? 13 : 17, C.muted);
+    });
+    const caps = [
+      'The three moves, with the numbers for <i>tea</i> and <i>strong</i>.',
+      'How to read an association score in a corpus tool.'
+    ];
+    return {
+      render: function (stage) {
+        C0.ctl.classList.remove('on');
+        show(recG, stage === 0); show(advG, stage === 1);
+        C0.cap(caps[stage]);
+      }
+    };
   });
-
-  function ch9render(svg, p, cap, stage, changed) {
-    var st = svg._ch9;
-    if (!st) {
-      svg.innerHTML = '';
-      var f1 = mathBox(svg, 40, 40, 560, 48, 'bigmath');
-      var f2 = mathBox(svg, 40, 104, 560, 40, 'bigmath');
-      var f3 = mathBox(svg, 40, 160, 560, 48, 'bigmath');
-      var cavG = el('g', { opacity: 0, 'class': 'anim' }, svg);
-      var items = [
-        ['rare words inflate PMI', C.orange],
-        ['log(0) = −∞, negatives unreliable → PPMI', C.red],
-        ['bigger corpus → more reliable estimates', C.blue]
-      ];
-      items.forEach(function (it, i) {
-        var x = 60 + i * 190;
-        el('rect', { x: x, y: 260, width: 170, height: 120, rx: 12, fill: C.card, stroke: C.line }, cavG);
-        el('circle', { cx: x + 26, cy: 292, r: 10, fill: it[1], 'fill-opacity': 0.85 }, cavG);
-        var words = it[0].split(' ');
-        var line1 = words.slice(0, 3).join(' '), line2 = words.slice(3, 7).join(' '), line3 = words.slice(7).join(' ');
-        txt(cavG, x + 44, 288, line1, { 'font-size': 10.5, fill: C.ink, 'font-weight': 700 });
-        txt(cavG, x + 14, 308, line2, { 'font-size': 10, fill: C.muted });
-        if (line3) txt(cavG, x + 14, 322, line3, { 'font-size': 10, fill: C.muted });
-      });
-      var sumG = el('g', { opacity: 0, 'class': 'anim' }, svg);
-      // mini summary: gauge needle + bar + heatmap chip row
-      var g = el('g', {}, sumG);
-      el('rect', { x: 40, y: 250, width: 560, height: 150, rx: 12, fill: C.card, stroke: C.line }, sumG);
-      txt(sumG, 320, 280, 'the whole story on one card', { 'font-size': 13, 'text-anchor': 'middle', 'font-weight': 800, fill: C.ink });
-      var chipData = [
-        ['PMI = log2(obs/exp), bits', C.accent],
-        ['PMI(tea,strong) = +1.44', C.blue],
-        ['PPMI = max(PMI,0)', C.green],
-        ['MI = E[PMI] = +' + MI.toFixed(2) + ' bits', C.orange]
-      ];
-      chipData.forEach(function (cd, i) {
-        var x = 66 + (i % 2) * 270, y = 306 + Math.floor(i / 2) * 40;
-        el('rect', { x: x, y: y, width: 250, height: 30, rx: 8, fill: '#f4f2ec', stroke: C.line }, sumG);
-        el('circle', { cx: x + 16, cy: y + 15, r: 6, fill: cd[1] }, sumG);
-        txt(sumG, x + 30, y + 19.5, cd[0], { 'font-size': 12, fill: C.ink, 'font-family': 'ui-monospace,monospace' });
-      });
-      st = svg._ch9 = { f1: f1, f2: f2, f3: f3, cavG: cavG, sumG: sumG, stage: -1 };
-      setMath(st.f1, '\\mathrm{PMI}(x,y) = \\log_2 \\tfrac{p(x,y)}{p(x)p(y)} = \\log_2 \\tfrac{p(x\\,|\\,y)}{p(x)}', 'PMI(x,y) = log2( p(x,y)/(p(x)p(y)) ) = log2( p(x|y)/p(x) )');
-      setMath(st.f2, '\\mathrm{PPMI}(x,y) = \\max(\\mathrm{PMI}(x,y),\\ 0)', 'PPMI(x,y) = max(PMI(x,y), 0)');
-      setMath(st.f3, 'I(X,Y) = \\textstyle\\sum_{x,y} p(x,y)\\,\\mathrm{PMI}(x,y) = \\mathbb{E}[\\mathrm{PMI}] \\ge 0', 'I(X,Y) = sum p(x,y)*PMI(x,y) = E[PMI] >= 0');
-    }
-    st.cavG.setAttribute('opacity', stage === 1 ? 1 : 0);
-    st.sumG.setAttribute('opacity', stage === 2 ? clamp((p - 0.3) / 0.5, 0, 1) : 0);
-    cap.textContent = [
-      'PMI = log2 of the obs/exp ratio (= log2 p(x|y)/p(x)); PPMI clips at 0; MI is the expectation of PMI.',
-      'Caveats: rare events inflate PMI, log(0) = -inf and negative PMI on rare events is unreliable (use PPMI), estimates improve with corpus size.',
-      'Use PMI for word-word / word-context association: collocations, term-term matrices, embeddings.'
-    ][stage];
-  }
 
   update();
 })();
