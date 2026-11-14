@@ -102,15 +102,121 @@ t('rare events inflate PMI: powerful x storm (f=1) outranks strong x tea (f=7)',
   assert.strictEqual(byCount[0].a + 'x' + byCount[0].b, 'teaxstrong', 'top by raw count');
 });
 
-t('expectedCount and contingency: cells sum to N, expected = fi*fj/N', () => {
-  const c = PMIM.contingency(CO.F, idx.tea, idx.strong);
-  assert.strictEqual(c.a, 7);
-  assert.strictEqual(c.a + c.b + c.c + c.d, CO.N);
-  assert.ok(Math.abs(PMIM.expectedCount(CO.F, idx.tea, idx.strong) - (c.fi * c.fj) / CO.N) < 1e-12);
-  assert.ok(Math.abs(PMIM.expectedCount(CO.F, idx.tea, idx.strong) - 2.588) < 1e-3);
-  assert.ok(c.a > PMIM.expectedCount(CO.F, idx.tea, idx.strong), 'observed > expected for strong tea');
-  const c2 = PMIM.contingency(CO.F, idx.tea, idx.powerful);
-  assert.ok(c2.a < PMIM.expectedCount(CO.F, idx.tea, idx.powerful), 'observed < expected for powerful tea');
+t('expectedCount = count(x)*count(y)/N; observed > expected for strong tea, < for powerful tea', () => {
+  const rs = PMIM.rowSums(CO.F);
+  const e = PMIM.expectedCount(CO.F, idx.tea, idx.strong);
+  assert.ok(Math.abs(e - (rs[idx.tea] * rs[idx.strong]) / CO.N) < 1e-12);
+  assert.ok(Math.abs(e - 2.588) < 1e-3);
+  assert.ok(CO.F[idx.tea][idx.strong] > e);
+  assert.ok(CO.F[idx.tea][idx.powerful] < PMIM.expectedCount(CO.F, idx.tea, idx.powerful));
+  assert.strictEqual(rs[idx.tea], 16, 'tea is the most frequent word');
+  assert.strictEqual(rs[idx.strong], 11);
+  assert.strictEqual(Math.max.apply(null, rs), 16);
+});
+
+t('pairEvents: per-sentence windows, stopwords skipped but occupy positions', () => {
+  const ev = PMIM.pairEvents(['she drinks strong tea every morning'], 3);
+  const names = ev.map(e => PMIM.VOCAB[e.wi] + '-' + PMIM.VOCAB[e.wj]).sort();
+  assert.deepStrictEqual(names, ['strong-morning', 'strong-tea', 'tea-morning']);
+  // window crossing a sentence boundary must NOT pair words
+  assert.strictEqual(PMIM.pairEvents(['strong', 'tea'], 3).length, 0);
+  // window 1: only adjacent words
+  assert.strictEqual(PMIM.pairEvents(['strong tea in morning'], 1).length, 1);
+  assert.strictEqual(CO.events.length, CO.pairs);
+  assert.strictEqual(CO.nSentences, 21);
+});
+
+t('diagonal is NaN (n/a) in pmiMatrix and 0 in PPMI; MI ignores it', () => {
+  const M = PMIM.pmiMatrix(CO.F);
+  for (let i = 0; i < 10; i++) assert.ok(Number.isNaN(M[i][i]));
+  assert.strictEqual(PMIM.ppmiMatrix(CO.F)[3][3], 0);
+});
+
+t('pairStats and topPairs minCount filter', () => {
+  const s = PMIM.pairStats(CO.F, V, idx.tea, idx.strong);
+  assert.strictEqual(s.f, 7);
+  assert.strictEqual(s.ci, 16);
+  assert.strictEqual(s.cj, 11);
+  assert.ok(Math.abs(s.ratio - 7 / s.expected) < 1e-12);
+  const all = PMIM.topPairs(CO.F, V, 0, 'pmi');
+  const min2 = PMIM.topPairs(CO.F, V, 0, 'pmi', 2);
+  assert.ok(min2.length < all.length && min2.every(p => p.f >= 2));
+  assert.strictEqual(all[0].a + all[0].b, 'powerfulstorm', 'rare pair tops raw PMI');
+  assert.notStrictEqual(min2[0].a + min2[0].b, 'powerfulstorm', 'min-count removes it from the top');
+  assert.strictEqual(min2[0].a + min2[0].b, 'powerfulcomputer');
+});
+
+t('count rank vs PMI rank: tea x coffee ties 2nd by count but has low PMI', () => {
+  const tc = PMIM.pairStats(CO.F, V, idx.tea, idx.coffee);
+  assert.strictEqual(tc.f, 3);
+  assert.ok(Math.abs(tc.pmi - 0.35) < 0.01);
+  const pc = PMIM.pairStats(CO.F, V, idx.powerful, idx.computer);
+  assert.strictEqual(pc.f, 3);
+  assert.ok(Math.abs(pc.pmi - 2.67) < 0.01);
+});
+
+t('pmiSmoothed: alpha=1 equals plain PMI; alpha<1 lowers rare-context PMI', () => {
+  assert.ok(Math.abs(PMIM.pmiSmoothed(CO.F, idx.tea, idx.strong, 1) - PMIM.pmi(CO.F, idx.tea, idx.strong)) < 1e-12);
+  const plain = PMIM.pmi(CO.F, idx.powerful, idx.storm);
+  const sm = PMIM.pmiSmoothed(CO.F, idx.powerful, idx.storm, 0.75);
+  assert.ok(sm < plain, sm + ' < ' + plain);
+  assert.strictEqual(PMIM.pmiSmoothed(CO.F, idx.storm, idx.tea, 0.75), -Infinity);
+});
+
+t('shuffle experiment: deterministic, N chips, mean ~ count(x)count(y)/(N-1)', () => {
+  const rng = PMIM.mulberry32(5);
+  const sp = PMIM.shuffledPairs(CO.F, rng);
+  assert.strictEqual(sp.length, CO.pairs);
+  const flat = [].concat.apply([], sp);
+  const rs = PMIM.rowSums(CO.F);
+  for (let w = 0; w < 10; w++) assert.strictEqual(flat.filter(x => x === w).length, rs[w], 'chip counts preserved');
+  assert.deepStrictEqual(PMIM.shuffleCounts(CO.F, idx.tea, idx.strong, 50, 3), PMIM.shuffleCounts(CO.F, idx.tea, idx.strong, 50, 3));
+  const c = PMIM.shuffleCounts(CO.F, idx.tea, idx.strong, 4000, 1);
+  const mean = c.reduce((a, b) => a + b, 0) / c.length;
+  assert.ok(Math.abs(mean - (16 * 11) / (CO.N - 1)) < 0.15, 'mean ' + mean);
+  assert.ok(c.filter(x => x >= 7).length / c.length < 0.01, 'chance almost never reaches the observed 7');
+});
+
+t('symmetricEigen: reconstruction, orthonormality, ordering, deterministic sign', () => {
+  const A = PMIM.ppmiMatrix(CO.F);
+  const E = PMIM.symmetricEigen(A);
+  const n = A.length;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    let r = 0;
+    for (let k = 0; k < n; k++) r += E.values[k] * E.vectors[k][i] * E.vectors[k][j];
+    assert.ok(Math.abs(r - A[i][j]) < 1e-9, 'reconstruct ' + i + ',' + j);
+  }
+  for (let p = 0; p < n; p++) for (let q = 0; q < n; q++) {
+    let d = 0;
+    for (let k = 0; k < n; k++) d += E.vectors[p][k] * E.vectors[q][k];
+    assert.ok(Math.abs(d - (p === q ? 1 : 0)) < 1e-9, 'orthonormal');
+  }
+  for (let k = 1; k < n; k++) assert.ok(Math.abs(E.values[k - 1]) >= Math.abs(E.values[k]) - 1e-12);
+  E.vectors.forEach((v) => {
+    let big = 0;
+    v.forEach((x, i) => { if (Math.abs(x) > Math.abs(v[big]) + 1e-12) big = i; });
+    assert.ok(v[big] > 0, 'largest component positive');
+  });
+  assert.deepStrictEqual(PMIM.symmetricEigen(A), E);
+  // known 2x2: [[2,1],[1,2]] -> 3, 1
+  const S = PMIM.symmetricEigen([[2, 1], [1, 2]]);
+  assert.ok(Math.abs(S.values[0] - 3) < 1e-12 && Math.abs(S.values[1] - 1) < 1e-12);
+});
+
+t('embed: 2-D coordinates are finite; tea block and powerful block separate', () => {
+  const E = PMIM.embed(PMIM.ppmiMatrix(CO.F), [0, 2]);
+  assert.strictEqual(E.coords.length, 10);
+  E.coords.forEach(c => { assert.strictEqual(c.length, 2); c.forEach(x => assert.ok(Number.isFinite(x))); });
+  const d = (a, b) => Math.hypot(E.coords[idx[a]][0] - E.coords[idx[b]][0], E.coords[idx[a]][1] - E.coords[idx[b]][1]);
+  assert.ok(d('tea', 'strong') < d('tea', 'powerful'), 'tea is nearer strong than powerful');
+  assert.ok(d('tea', 'coffee') < d('tea', 'engine'));
+  assert.strictEqual(PMIM.embed(PMIM.ppmiMatrix(CO.F), 3).coords[0].length, 3);
+});
+
+t('cosine', () => {
+  assert.ok(Math.abs(PMIM.cosine([1, 0], [1, 0]) - 1) < 1e-12);
+  assert.ok(Math.abs(PMIM.cosine([1, 0], [0, 1])) < 1e-12);
+  assert.strictEqual(PMIM.cosine([0, 0], [1, 1]), 0);
 });
 
 t('pmiMatrix / ppmiMatrix shapes and values; PPMI clips negatives and -inf to 0', () => {
