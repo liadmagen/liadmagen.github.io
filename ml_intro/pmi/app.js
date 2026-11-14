@@ -276,7 +276,7 @@
       const near = r.bottom > -vh * 0.5 && r.top < vh * 1.5;
       if (!near && ch.inst) return;
       // on narrow screens the figure is pinned to the top, so a step "arrives" lower on the screen
-      const trig = mq.matches ? ({ ch3: 0.66, ch4: 0.68, ch6: 0.66, ch7: 0.7 }[ch.id] || 0.6) : 0.5;
+      const trig = mq.matches ? 0.6 : 0.5;
       let lastAbove = -1;
       ch.steps.forEach((s, si) => { if (s.getBoundingClientRect().top <= vh * trig) lastAbove = si; });
       const best = clamp(lastAbove, 0, ch.steps.length - 1);
@@ -520,8 +520,8 @@
       });
     }
     /* legend + info line under the cards */
-    const info = T(svg, W / 2, cardsBottom + (M ? 14 : 24), '', M ? 13 : 15, C.ink, { 'text-anchor': 'middle', 'font-weight': 700 });
-    const legG = el('g', {}, svg), ly = cardsBottom + (M ? 30 : 48);
+    const info = T(svg, W / 2, cardsBottom + (M ? 16 : 26), '', M ? 13 : 15, C.ink, { 'text-anchor': 'middle', 'font-weight': 700 });
+    const legG = el('g', {}, svg), ly = cardsBottom + (M ? 40 : 56);
     [['tea', C.accent], ['strong', C.teal], ['any other word', C.greySoft]].forEach((it, i) => {
       const lx = W / 2 + (i - 1) * (M ? 105 : 150) - (M ? 38 : 50);
       el('rect', { x: lx, y: ly - 11, width: 13, height: 13, rx: 3, fill: it[1], stroke: '#c9c3b6' }, legG);
@@ -530,7 +530,7 @@
 
     /* histogram of shuffles */
     const histG = el('g', {}, svg);
-    const hx0 = M ? 36 : 70, hx1 = W - (M ? 16 : 40), hBase = H - (M ? 40 : 66), hTop = M ? ly + 24 : ly + 36;
+    const hx0 = M ? 36 : 70, hx1 = W - (M ? 16 : 40), hBase = H - (M ? 40 : 66), hTop = M ? ly + 30 : ly + 40;
     const BINS = 9, bw = (hx1 - hx0) / BINS;
     el('line', { x1: hx0, y1: hBase, x2: hx1, y2: hBase, stroke: C.muted, 'stroke-width': 1.5 }, histG);
     const bars = [];
@@ -540,6 +540,7 @@
     }
     T(histG, (hx0 + hx1) / 2, hBase + (M ? 32 : 40), 'tea + strong pairs in one shuffle', M ? 12 : 13, C.muted, { 'text-anchor': 'middle' });
     const hCount = T(histG, hx0, hTop - 22, '', 14, C.ink, { 'font-weight': 700 });
+    hCount.style.display = 'none';
     const xAt = (v) => hx0 + (v + 0.5) * bw;
     const expLine = el('line', { x1: 0, y1: hTop + 8, x2: 0, y2: hBase, stroke: C.ink, 'stroke-width': 2, 'stroke-dasharray': '6 4' }, histG);
     const expLab = T(histG, 0, hTop + 4, '', M ? 12 : 13, C.ink, { 'text-anchor': 'middle', 'font-weight': 700 });
@@ -590,11 +591,11 @@
           info.textContent = stage === 0 ? N + ' ends: tea fills ' + RS[TEA] + ', strong fills ' + RS[STR] : '';
         } else if (stage === 2) {
           setCards(observed);
-          info.textContent = 'what the corpus shows: ' + TS.f + ' tea + strong cards';
+          info.textContent = 'what the corpus shows: ' + TS.f + ' tea + strong cards · ' + (t + extra.length) + ' shuffles';
         } else {
           const arr = extra.length ? extraArr : TR.arrs[t - 1];
           setCards(arr);
-          info.textContent = 'this shuffle: ' + PM.countPairIn(arr, TEA, STR) + ' tea + strong cards' + (M ? ' · ' + (t + extra.length) + ' shuffles' : '');
+          info.textContent = 'this shuffle: ' + PM.countPairIn(arr, TEA, STR) + ' tea + strong cards · ' + (t + extra.length) + ' shuffles';
         }
         // histogram
         const h = new Array(BINS).fill(0);
@@ -653,12 +654,11 @@
     const bx0 = M ? 22 : 50, bx1 = W - (M ? 22 : 50), by = M ? 200 : 300;
     const bx = (b) => bx0 + (clamp(b, -3.2, 3.2) + 3.2) / 6.4 * (bx1 - bx0);
     el('line', { x1: bx0, y1: by, x2: bx1, y2: by, stroke: C.muted, 'stroke-width': 3 }, logG);
-    el('line', { x1: bx(0), y1: by - 70, x2: bx(0), y2: by + 8, stroke: C.grey, 'stroke-width': 2, 'stroke-dasharray': '5 4' }, logG);
+    el('line', { x1: bx(0), y1: by - 34, x2: bx(0), y2: by + 8, stroke: C.grey, 'stroke-width': 2, 'stroke-dasharray': '5 4' }, logG);
     const ratioTxt = ['⅛', '¼', '½', '1', '2', '4', '8'];
     for (let b = -3; b <= 3; b++) {
       el('line', { x1: bx(b), y1: by - 6, x2: bx(b), y2: by + 6, stroke: C.muted, 'stroke-width': 2 }, logG);
       T(logG, bx(b), by + 28, (b > 0 ? '+' : b < 0 ? MINUS : '') + Math.abs(b), fsL, C.ink, { 'text-anchor': 'middle', 'class': 'mono' });
-      T(logG, bx(b), by - 14, '×' + ratioTxt[b + 3], fsL, C.muted, { 'text-anchor': 'middle' });
     }
     T(logG, bx0 - 2, by + 52, 'bits = log₂ of the ratio', fsL, C.muted);
     T(logG, bx0, by + 82, '← less than chance', fsL, C.orange, { 'font-weight': 700 });
@@ -691,6 +691,10 @@
     el('circle', { cx: bx(DIE.pmi), cy: by, r: 10, fill: C.blue, stroke: '#fff', 'stroke-width': 2 }, dieMark);
     T(dieMark, bx(DIE.pmi), by - 42, sgn(DIE.pmi) + ' bits', fsL + 1, C.blue, { 'text-anchor': 'middle', 'font-weight': 800 });
 
+    /* ratio labels last, with a white halo, so stems and the dashed line pass behind them */
+    for (let b = -3; b <= 3; b++) {
+      T(logG, bx(b), by - 16, '×' + ratioTxt[b + 3], fsL, C.muted, { 'text-anchor': 'middle', 'paint-order': 'stroke', stroke: '#fff', 'stroke-width': 5, 'stroke-linejoin': 'round' });
+    }
     const range = document.getElementById('bitsRange'), out = document.getElementById('bitsOut');
     function setBits(b) { state.bits = clamp(b, -3, 3); range.value = state.bits; C0.redraw(); }
     range.oninput = () => setBits(Number(range.value));
@@ -737,15 +741,19 @@
     const L = MIN2.slice().sort((a, b) => b.f - a.f || (a.a + a.b < b.a + b.b ? -1 : 1));
     const R = MIN2.slice().sort((a, b) => b.pmi - a.pmi);
     const n = L.length, rowH = M ? 34 : 46, sy0 = M ? 62 : 104;
-    const xl = M ? 134 : 250, xr = M ? 216 : 392;
+    const xl = M ? 134 : 240, xr = M ? 216 : 392;
+    const rTitle = [];
     T(slopeG, xl, M ? 22 : 40, 'by count', M ? 14 : 16, C.ink, { 'text-anchor': 'end', 'font-weight': 800 });
-    T(slopeG, xr, M ? 22 : 40, 'by PMI', M ? 14 : 16, C.ink, { 'text-anchor': 'end', 'font-weight': 800, 'class': 'rtitle' });
+    rTitle.push(T(slopeG, xr, M ? 22 : 40, 'by PMI', M ? 14 : 16, C.ink, { 'text-anchor': 'end', 'font-weight': 800 }));
     T(slopeG, xl, M ? 40 : 62, 'seen', M ? 12 : 13, C.muted, { 'text-anchor': 'end' });
-    const rTitle2 = T(slopeG, xr, M ? 40 : 62, 'bits', M ? 12 : 13, C.muted, { 'text-anchor': 'end' });
+    rTitle.push(T(slopeG, xr, M ? 40 : 62, 'bits', M ? 12 : 13, C.muted, { 'text-anchor': 'end' }));
+    const barX = xl + 26, barW = (M ? 380 : 640) - barX - (M ? 36 : 70), maxF = L0max();
+    function L0max() { return Math.max.apply(null, MIN2.map((p) => p.f)); }
     const items = L.map((pr, i) => {
       const iR = R.indexOf(pr);
       const g = el('g', {}, slopeG);
       const line = el('line', { x1: xl + 12, y1: 0, x2: xr - 12, y2: 0, 'stroke-linecap': 'round' }, g);
+      const bar = el('rect', { x: barX, y: 0, width: pr.f / maxF * barW, height: M ? 12 : 16, rx: 3, fill: C.blue, 'fill-opacity': 0.8 }, g);
       const dl = el('circle', { cx: xl + 6, cy: 0, r: M ? 10 : 12, fill: C.blue }, g);
       const cl = T(g, xl + 6, 0, String(pr.f), M ? 12 : 14, '#fff', { 'text-anchor': 'middle', 'font-weight': 800, 'class': 'mono' });
       const nl = T(g, xl - (M ? 16 : 22), 0, pr.a + ' × ' + pr.b, M ? 11.5 : 15, C.ink, { 'text-anchor': 'end' });
@@ -753,7 +761,7 @@
       const nr = T(g, xr + (M ? 20 : 24), 0, pr.a + ' × ' + pr.b, M ? 11.5 : 15, C.ink);
       const vr = T(g, xr + (M ? 20 : 24), 0, sgn(pr.pmi), M ? 12 : 14, pr.pmi >= 0 ? C.blue : C.orange, { 'font-weight': 800, 'class': 'mono' });
       bindTip(g, () => pairTip(pr));
-      return { pr: pr, iL: i, iR: iR, g: g, line: line, dl: dl, cl: cl, nl: nl, dr: dr, nr: nr, vr: vr };
+      return { pr: pr, iL: i, iR: iR, g: g, bar: bar, line: line, dl: dl, cl: cl, nl: nl, dr: dr, nr: nr, vr: vr };
     });
     const hiTC = pairKey('tea', 'coffee'), hiPC = pairKey('powerful', 'computer');
 
@@ -786,7 +794,7 @@
     T(matG, GX + lgW, lgY + 24, (M ? '+ more' : '+ more than chance'), M ? 11.5 : 12.5, C.blue, { 'text-anchor': 'end', 'font-weight': 700 });
 
     const caps = [
-      'Pairs seen at least twice, sorted by how often they were seen. The circle holds the count.',
+      'Pairs seen at least twice, sorted by how often they were seen (bar length and circle).',
       'Lines connect each pair’s count rank to its PMI rank. Blue lines: the pair rises. Orange: it sinks.',
       'Highlighted: both pairs have count ' + TC.f + ', but their PMI ranks are far apart.',
       'PMI in bits for every pair of words. Hover or tap a cell for the numbers.'
@@ -795,7 +803,9 @@
       render: function (stage, p, q) {
         C0.ctl.classList.remove('on');
         show(slopeG, stage !== 3); show(matG, stage === 3);
-        const e = stage === 0 ? 0 : stage === 1 ? ease(clamp(q * 2.2, 0, 1)) : 1;
+        // the end state is reached very early in the step (immediately with reduced motion)
+        const e = stage === 0 ? 0 : stage === 1 && !reducedMotion ? ease(clamp(q * 6, 0, 1)) : 1;
+        rTitle.forEach((t) => t.setAttribute('opacity', stage >= 1 ? 1 : 0));
         items.forEach((it) => {
           const yL = sy0 + it.iL * rowH, yR = sy0 + (it.iL + (it.iR - it.iL) * e) * rowH;
           const hi = pairKey(it.pr.a, it.pr.b) === hiTC || pairKey(it.pr.a, it.pr.b) === hiPC;
@@ -812,12 +822,13 @@
           it.line.setAttribute('stroke-width', stage === 2 && hi ? 6 : 3);
           it.line.setAttribute('opacity', stage === 0 ? 0 : dim ? 0.25 : 0.85);
           it.dl.setAttribute('cy', yL); it.cl.setAttribute('y', yL + 4.5); it.nl.setAttribute('y', yL + 4.5);
-          const showR = stage >= 1 ? clamp((e - 0.6) / 0.4, 0, 1) : 0;
+          const showR = stage >= 1 ? 1 : 0;
+          it.bar.setAttribute('y', yL - (M ? 6 : 8)); it.bar.setAttribute('opacity', stage === 0 ? 1 : 0);
           [it.dr, it.nr, it.vr].forEach((n2) => n2.setAttribute('opacity', showR));
           it.dr.setAttribute('cy', yR);
           if (M) { it.nr.setAttribute('y', yR - 2); it.vr.setAttribute('y', yR + 12); } else {
             it.nr.setAttribute('y', yR + 5); it.vr.setAttribute('y', yR + 5);
-            it.vr.setAttribute('x', xr + 24 + 160);
+            it.vr.setAttribute('x', xr + 24 + 168);
           }
         });
         C0.cap(caps[stage]);
@@ -1045,27 +1056,36 @@
     /* ---- the real 2-D map from the SVD of the PPMI matrix */
     const emb = PM.embed(PM.ppmiMatrix(F), [0, 2]);
     const xs = emb.coords.map((c) => c[0]), ys = emb.coords.map((c) => c[1]);
-    const mx0 = M ? 44 : 70, mx1 = W - (M ? 30 : 60), my0 = M ? 24 : 70, my1 = H - (M ? 74 : 110);
-    const sx = (v) => mx0 + (v - Math.min.apply(null, xs)) / (Math.max.apply(null, xs) - Math.min.apply(null, xs)) * (mx1 - mx0);
-    const sy = (v) => my1 - (v - Math.min.apply(null, ys)) / (Math.max.apply(null, ys) - Math.min.apply(null, ys)) * (my1 - my0);
-    el('rect', { x: mx0 - 14, y: my0 - 14, width: mx1 - mx0 + 28, height: my1 - my0 + 28, rx: 10, fill: '#fcfbf8', stroke: C.line }, mapG);
+    const mx0 = M ? 44 : 70, mx1 = W - (M ? 22 : 50), my0 = M ? 14 : 60, my1 = H - (M ? 80 : 120);
+    const xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs), yMin = Math.min.apply(null, ys), yMax = Math.max.apply(null, ys);
+    const padX = (xMax - xMin) * 0.14, padY = (yMax - yMin) * 0.14;
+    const sx = (v) => mx0 + (v - (xMin - padX)) / (xMax - xMin + 2 * padX) * (mx1 - mx0);
+    const sy = (v) => my1 - (v - (yMin - padY)) / (yMax - yMin + 2 * padY) * (my1 - my0);
+    el('rect', { x: mx0, y: my0, width: mx1 - mx0, height: my1 - my0, rx: 10, fill: '#fcfbf8', stroke: C.line }, mapG);
     const pts = VOCAB.map((w, i) => ({ w: w, x: sx(xs[i]), y: sy(ys[i]) }));
-    const small = pts.filter((q) => q.x < mx0 + (mx1 - mx0) * 0.3).sort((a, b) => a.y - b.y);
-    let prevLy = -1e9;
-    small.forEach((q) => { q.lx = q.x + 12; q.ly = Math.max(q.y + 4, prevLy + (M ? 14 : 17)); prevLy = q.ly; q.anchor = 'start'; });
-    pts.filter((q) => small.indexOf(q) < 0).sort((a, b) => a.x - b.x).forEach((q, k) => {
-      q.lx = q.x; q.ly = q.y + (k % 2 === 0 ? -14 : 24); q.anchor = 'middle';
-    });
     const focusW = (w) => w === 'tea' || w === 'strong';
+    const lead = (q, lx, ly) => el('line', { x1: q.x, y1: q.y, x2: lx, y2: ly, stroke: '#a9b2bb', 'stroke-width': 1.2 }, mapG);
+    /* left cluster (the tea group): labels in a column to the right, spread out, with leader lines */
+    const small = pts.filter((q) => q.x < mx0 + (mx1 - mx0) * 0.3).sort((a, b) => a.y - b.y);
+    const colX = Math.max.apply(null, small.map((q) => q.x)) + (M ? 40 : 56), gapY = M ? 17 : 21;
+    let prevLy = -1e9;
+    small.forEach((q) => { q.ly = Math.max(q.y, prevLy + gapY); prevLy = q.ly; q.lx = colX; q.anchor = 'start'; q.leader = [colX - 4, q.ly - 4]; });
+    /* right cluster (the powerful group): labels staggered above and below with leader lines */
+    const offs = [-30, 34, -58, 34];
+    pts.filter((q) => small.indexOf(q) < 0).sort((a, b) => a.x - b.x).forEach((q, k) => {
+      const dy = offs[k % offs.length];
+      q.lx = q.x; q.ly = q.y + dy; q.anchor = 'middle'; q.leader = [q.x, q.ly + (dy < 0 ? 4 : -13)];
+    });
     const ts = pts.filter((q) => q.w === 'tea')[0], st2 = pts.filter((q) => q.w === 'strong')[0];
+    pts.forEach((q) => lead(q, q.leader[0], q.leader[1]));
     el('line', { x1: ts.x, y1: ts.y, x2: st2.x, y2: st2.y, stroke: C.accent, 'stroke-width': 3, 'stroke-dasharray': '6 4' }, mapG);
     pts.forEach((q) => {
-      el('circle', { cx: q.x, cy: q.y, r: M ? 7 : 8, fill: focusW(q.w) ? C.accent : C.ink, 'fill-opacity': 0.88, stroke: '#fff', 'stroke-width': 2 }, mapG);
+      el('circle', { cx: q.x, cy: q.y, r: M ? 6 : 7, fill: focusW(q.w) ? C.accent : C.ink, 'fill-opacity': 0.9, stroke: '#fff', 'stroke-width': 2 }, mapG);
       T(mapG, q.lx, q.ly, q.w, M ? 13 : 15, focusW(q.w) ? C.accent : C.ink, { 'text-anchor': q.anchor, 'font-weight': focusW(q.w) ? 800 : 600 });
     });
     T(mapG, (mx0 + mx1) / 2, my1 + 34, 'direction of the powerful group →', M ? 12.5 : 14, C.muted, { 'text-anchor': 'middle' });
     const yl = T(mapG, mx0 - 24, (my0 + my1) / 2, 'direction of the tea group →', M ? 12.5 : 14, C.muted, { 'text-anchor': 'middle' });
-    yl.setAttribute('transform', 'rotate(-90 ' + (mx0 - 20) + ' ' + (my0 + my1) / 2 + ')');
+    yl.setAttribute('transform', 'rotate(-90 ' + (mx0 - 24) + ' ' + (my0 + my1) / 2 + ')');
     T(mapG, W / 2, H - (M ? 22 : 40), 'toy corpus, ten words: real embeddings use millions of words', M ? 12 : 14, C.ink, { 'text-anchor': 'middle', 'font-weight': 700 });
     T(mapG, W / 2, H - (M ? 6 : 18), 'and hundreds of directions', M ? 12 : 14, C.muted, { 'text-anchor': 'middle' });
 
@@ -1129,35 +1149,44 @@
      Chapter 9 - recap
      ============================================================ */
   register('ch9', function (C0) {
-    const svg = C0.svg, W = C0.W, H = C0.H, M = C0.M;
-    const recG = el('g', {}, svg), advG = el('g', {}, svg);
-    const ch = M ? 88 : 130, gapY = M ? 12 : 22, y0 = M ? 14 : 40;
-    const recipe = [
-      ['1', 'Count', '\\text{count}(\\text{tea},\\text{strong}) = ' + TS.f],
-      ['2', 'Compare with chance', '\\text{expected}=\\dfrac{' + TS.ci + '\\cdot ' + TS.cj + '}{' + N + '}\\approx ' + TS.expected.toFixed(2)],
-      ['3', 'Take the logarithm', '\\mathrm{PMI}=\\log_2\\dfrac{' + TS.f + '}{' + TS.expected.toFixed(2) + '}\\approx ' + TS.pmi.toFixed(2).replace(MINUS, '-')]
-    ];
-    recipe.forEach((r, i) => {
-      const y = y0 + i * (ch + gapY);
-      el('rect', { x: 10, y: y, width: W - 20, height: ch, rx: 12, fill: C.card, stroke: C.line }, recG);
-      el('circle', { cx: 38, cy: y + (M ? 24 : 34), r: M ? 14 : 18, fill: C.accent }, recG);
-      T(recG, 38, y + (M ? 29 : 40), r[0], M ? 16 : 20, '#fff', { 'text-anchor': 'middle', 'font-weight': 800 });
-      T(recG, 66 + (M ? 0 : 6), y + (M ? 30 : 40), r[1], M ? 15 : 20, C.ink, { 'font-weight': 800 });
-      setTex(mathBox(recG, 20, y + (M ? 40 : 56), W - 40, ch - (M ? 42 : 60), 'big c'), r[2]);
+    /* The recap text lives in ordinary HTML cards (normal flow, so it can never overlap whatever the
+       window size or font settings); the svg above only carries a small flow diagram. */
+    const svg = C0.svg, W = C0.W, M = C0.M;
+    const H9 = M ? 74 : 150;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H9);
+    const steps = [['count', 'seen'], ['compare', 'expected'], ['take the log', 'bits']];
+    const cy = M ? 28 : 58, r = M ? 17 : 30, x0 = W * 0.17, dx = W * 0.33;
+    steps.forEach((st, i) => {
+      const x = x0 + i * dx;
+      if (i < 2) {
+        el('line', { x1: x + r + 6, y1: cy, x2: x + dx - r - 14, y2: cy, stroke: C.grey, 'stroke-width': 3, 'stroke-linecap': 'round' }, svg);
+        el('path', { d: 'M ' + (x + dx - r - 4) + ' ' + cy + ' l -10 -7 l 0 14 z', fill: C.grey }, svg);
+      }
+      el('circle', { cx: x, cy: cy, r: r, fill: C.accent }, svg);
+      T(svg, x, cy + (M ? 6 : 9), String(i + 1), M ? 18 : 28, '#fff', { 'text-anchor': 'middle', 'font-weight': 800 });
+      T(svg, x, cy + r + (M ? 17 : 26), st[0], M ? 13 : 17, C.ink, { 'text-anchor': 'middle', 'font-weight': 700 });
     });
-    const cards = [
-      ['A high score and a decent count', 'a candidate for your glossary', C.blue, '✓'],
-      ['A high score on 1–2 sightings', 'be suspicious (one-off pairs)', C.orange, '!'],
-      ['A negative score on a small count', 'unreliable: look at more text', C.grey, '?']
-    ];
-    cards.forEach((c, i) => {
-      const y = y0 + i * (ch + gapY);
-      el('rect', { x: 10, y: y, width: W - 20, height: ch, rx: 12, fill: C.card, stroke: c[2], 'stroke-width': 2 }, advG);
-      el('circle', { cx: 40, cy: y + ch / 2, r: M ? 16 : 22, fill: c[2] }, advG);
-      T(advG, 40, y + ch / 2 + (M ? 6 : 8), c[3], M ? 18 : 26, '#fff', { 'text-anchor': 'middle', 'font-weight': 800 });
-      T(advG, 74, y + ch / 2 - 4, c[0], M ? 14 : 19, C.ink, { 'font-weight': 800 });
-      T(advG, 74, y + ch / 2 + (M ? 18 : 26), c[1], M ? 13 : 17, C.muted);
-    });
+    let panel = document.getElementById('pan9');
+    panel.innerHTML = '';
+    const card = (cls, badge, title, formulaTex, sub) => {
+      const c = document.createElement('div'); c.className = 'rcard ' + cls;
+      const b = document.createElement('span'); b.className = 'badge'; b.textContent = badge; c.appendChild(b);
+      const t = document.createElement('div'); t.className = 'rtxt';
+      const h = document.createElement('b'); h.textContent = title; t.appendChild(h);
+      if (formulaTex) { const f = document.createElement('div'); f.className = 'rform'; setTex(f, formulaTex); t.appendChild(f); }
+      if (sub) { const p = document.createElement('div'); p.className = 'rsub'; p.textContent = sub; t.appendChild(p); }
+      c.appendChild(t);
+      return c;
+    };
+    const recG = document.createElement('div'), advG = document.createElement('div');
+    recG.className = advG.className = 'rgroup';
+    recG.appendChild(card('', '1', 'Count', '\\text{count}(\\text{tea},\\text{strong}) = ' + TS.f));
+    recG.appendChild(card('', '2', 'Compare with chance', '\\text{expected}=\\dfrac{' + TS.ci + '\\cdot ' + TS.cj + '}{' + N + '}\\approx ' + TS.expected.toFixed(2)));
+    recG.appendChild(card('', '3', 'Take the logarithm', '\\mathrm{PMI}=\\log_2\\dfrac{' + TS.f + '}{' + TS.expected.toFixed(2) + '}\\approx ' + TS.pmi.toFixed(2).replace(MINUS, '-')));
+    advG.appendChild(card('good', '\u2713', 'A high score and a decent count', null, 'a candidate for your glossary'));
+    advG.appendChild(card('warn', '!', 'A high score on 1\u20132 sightings', null, 'be suspicious: one-off pairs'));
+    advG.appendChild(card('unsure', '?', 'A negative score on a small count', null, 'unreliable: look at more text'));
+    panel.appendChild(recG); panel.appendChild(advG);
     const caps = [
       'The three moves, with the numbers for <i>tea</i> and <i>strong</i>.',
       'How to read an association score in a corpus tool.'
