@@ -213,6 +213,16 @@ t('embed: 2-D coordinates are finite; tea block and powerful block separate', ()
   assert.strictEqual(PMIM.embed(PMIM.ppmiMatrix(CO.F), 3).coords[0].length, 3);
 });
 
+t('PPMI eigen-directions: the two biggest describe the powerful group, the third the tea group', () => {
+  const E = PMIM.symmetricEigen(PMIM.ppmiMatrix(CO.F));
+  const powerGroup = ['powerful', 'engine', 'storm', 'computer'].map(w => idx[w]);
+  const teaGroup = ['tea', 'coffee', 'strong', 'hot', 'bitter', 'morning'].map(w => idx[w]);
+  const mass = (v, ids) => ids.reduce((a, i) => a + v[i] * v[i], 0);
+  assert.ok(mass(E.vectors[0], powerGroup) > 0.99, 'direction 1 lives on the powerful group');
+  assert.ok(mass(E.vectors[1], powerGroup) > 0.99, 'direction 2 lives on the powerful group');
+  assert.ok(mass(E.vectors[2], teaGroup) > 0.99, 'direction 3 lives on the tea group');
+});
+
 t('cosine', () => {
   assert.ok(Math.abs(PMIM.cosine([1, 0], [1, 0]) - 1) < 1e-12);
   assert.ok(Math.abs(PMIM.cosine([1, 0], [0, 1])) < 1e-12);
