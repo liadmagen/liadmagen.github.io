@@ -24,6 +24,8 @@ t('gini: pure node = 0, balanced binary = 0.5', () => {
   assert.ok(near(ML.gini([5, 5]), 0.5));
   assert.ok(near(ML.giniProbs([0.25, 0.75]), 0.375));
   assert.ok(near(ML.gini([8, 2]), 0.32));
+  assert.strictEqual(ML.gini([0, 0]), 0, 'an empty node is not mixed up');
+  assert.strictEqual(ML.entropy([0, 0]), 0);
 });
 
 t('gini = chance that two examples picked at random (with putting back) disagree', () => {
@@ -121,6 +123,17 @@ t('one tree for the whole page: depth-limited trees are prefixes of the deeper t
   assert.deepStrictEqual(t2.left.right.counts, [0, 15]);
 });
 
+t('the chapter-2 walk: probe goes yes at the root, no at the next question, and lands in the pure orange leaf', () => {
+  const w = ML.predict(tree(2), ML.PROBE);
+  assert.strictEqual(w.path.length, 3);
+  assert.ok(ML.PROBE[0] <= w.path[0].threshold, 'root: yes');
+  assert.ok(ML.PROBE[1] > w.path[1].threshold, 'second question: no');
+  assert.strictEqual(w.path[1].feature, 1);
+  assert.strictEqual(w.label, 1);
+  assert.deepStrictEqual(w.leaf.counts, [0, 15]);
+  assert.strictEqual(w.leaf.reason, 'pure');
+});
+
 t('tree nodes carry their own impurity, leaf reason and a stable id', () => {
   const nodes = ML.treeNodes(tree(3));
   assert.strictEqual(new Set(nodes.map(n => n.id)).size, nodes.length);
@@ -164,7 +177,9 @@ t('layoutTree puts leaves left to right and parents above their children', () =>
     assert.ok(near(n.px, (n.left.px + n.right.px) / 2));
     assert.ok(n.py < n.left.py && n.py < n.right.py);
   });
-  assert.ok(leaves.every(l => l.px > 0 && l.px < 100));
+  assert.ok(leaves.every(l => l.px >= 0 && l.px <= 100));
+  assert.ok(near(leaves[0].px, 0) && near(leaves[leaves.length - 1].px, 100), 'leaves span the whole width');
+  for (let i = 1; i < leaves.length; i++) assert.ok(near(leaves[i].px - leaves[i - 1].px, 100 / (leaves.length - 1)), 'even spacing');
 });
 
 /* ---------------------------------------------------------------- overfitting (A6) */

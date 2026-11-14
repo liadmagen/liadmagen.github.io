@@ -79,6 +79,9 @@
     return d;
   }
 
+  // a new, unlabelled example that chapter 2 sends down the tree
+  const PROBE = [4.3, 6.1];
+
   // 1-D data for AdaBoost, labels already -1 / +1. Two examples cross over on purpose:
   // x = 3.0 is +1 although it sits in the -1 zone, and x = 7.4 is -1 in the +1 zone.
   function makeLine() {
@@ -101,7 +104,8 @@
     return [counts[0] / n, counts[1] / n];
   }
 
-  function giniProbs(p) { return 1 - (p[0] * p[0] + p[1] * p[1]); }
+  // an empty node has nothing to disagree about: impurity 0
+  function giniProbs(p) { return p[0] + p[1] === 0 ? 0 : 1 - (p[0] * p[0] + p[1] * p[1]); }
   function gini(counts) { return giniProbs(probs(counts)); }
 
   // "Pick one example, put it back, pick again: how often do the two disagree?"
@@ -246,15 +250,16 @@
     return treeWidth(node.left, minLeafW) + treeWidth(node.right, minLeafW);
   }
 
-  // Tidy layout: leaves are spaced evenly, parents sit above the middle of their children.
+  // Tidy layout: leaves are spread evenly from x0 to x1 (first leaf at x0, last at x1),
+  // parents sit above the middle of their children.
   function layoutTree(tree, x0, x1, y0, levelH) {
     let leaves = 0;
     (function count(n) { if (n.leaf) leaves++; else { count(n.left); count(n.right); } })(tree);
-    const slot = (x1 - x0) / leaves;
+    const slot = leaves > 1 ? (x1 - x0) / (leaves - 1) : 0;
     let k = 0;
     (function place(n) {
       n.py = y0 + n.depth * levelH;
-      if (n.leaf) { n.px = x0 + slot * (k + 0.5); k++; return; }
+      if (n.leaf) { n.px = leaves > 1 ? x0 + slot * k : (x0 + x1) / 2; k++; return; }
       place(n.left); place(n.right);
       n.px = (n.left.px + n.right.px) / 2;
     })(tree);
@@ -370,7 +375,7 @@
   }
 
   return {
-    mulberry32, gaussian, CLUSTERS, MISLABELED,
+    mulberry32, gaussian, CLUSTERS, MISLABELED, PROBE,
     makeDataset, makeNoisy, makeFresh, makeLine,
     countsOf, probs, gini, giniProbs, pickDisagreeProb, entropy, entropyProbs, impurity,
     splitStats, scanSplits, bestSplit, buildTree, predict, accuracy, trainAccuracy, majority,
