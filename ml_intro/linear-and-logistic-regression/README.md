@@ -1,43 +1,69 @@
-# From a Number to a Yes — linear & logistic regression, visualised
+# From a Number to a Yes: linear and logistic regression, visualised
 
-An R2D3-style scrollytelling page for the MLT *Modeling* session on linear & logistic
-regression. A sticky D3 figure reacts to your scroll; two steps are interactive
-(drag-your-own-line, spam threshold slider).
+A scroll-driven visual introduction to linear and logistic regression for the course
+*Introduction to ML for Language Technologies* (MA students with a background in translation studies).
+It follows the same pattern as the sibling pages `../pmi/` and `../decision_trees/`: a figure pinned beside
+(on phones: above) short text steps, grouped into chapters.
+
+The story: 40 made-up essays, a line you draw yourself, how wrong a line is (mean squared error),
+gradient descent and the learning rate, the finished line read in words, the pivot to a yes/no question,
+the sigmoid and the decision boundary, log-loss and odds (optional), a spam filter with a threshold slider,
+and a recap of the "two lenses" (number vs. probability).
+
+All data is synthetic: 40 invented essays (average sentence length vs. a teacher's readability rating)
+and 34 invented emails (how often the word "free" appears, spam or not). The page never calls them real.
 
 ## Files
 
 | file | what it is |
 |---|---|
-| `index.html` | the page — layout, scene engine, all 13 scenes (prose included, edit freely) |
-| `d3.min.js` | D3 v7, vendored locally so the page works offline (no CDN needed) |
-| `data.js` | the frozen dataset + all fitted numbers, loaded by the page (`const DATA = …`) |
-| `generate_data.py` | regenerates `data.json` + `data.js` (seeded — same numbers every run) |
-| `storyboard.md` | the scene-by-scene spec this build follows |
+| `index.html` | the page: layout, styles, all prose (edit freely; numbers are `{{placeholders}}`) |
+| `app.js` | the scroll engine, the six chapters' figures, controls, tooltips |
+| `lr-math.js` | pure maths (UMD: `window.LRM` in the browser, `module.exports` in node): the two frozen datasets, least squares, mean squared error, gradient descent paths, loss-map ellipses, logistic fit, log-loss, confusion counts |
+| `lr-math.test.js` | unit tests, run with `node lr-math.test.js` |
+| `../vendor/katex/` | local KaTeX, shared with the other pages (the page works offline) |
+| `generate_data.py`, `data.js`, `data.json` | provenance only: how the datasets were generated (seeded numpy) and the numbers that run produced. The page does not load them; `lr-math.test.js` checks that the JavaScript recomputes the same numbers |
+| `storyboard.md` | the chapter-by-chapter spec this build follows |
 
 ## Open it
 
-Double-click `index.html` — that's it. No build step, no server, no internet needed.
+Double-click `index.html`. No build step, no server, no internet needed.
 
-## Host it (optional)
+## Tests
 
-Any static host. GitHub Pages: push this folder to the `Modeling_course` repo and enable
-Pages, or drop it into any `docs/` folder.
+```bash
+node lr-math.test.js
+```
 
-## Regenerate the data
+The tests assert, among others: the frozen arrays equal `data.js`; the best line (about 93.3 - 2.19 x, mean squared
+error about 80.4); the three gradient-descent paths (crawl, calm, explode); the line fitted to 0/1 labels (1.07 at 6 words,
+-0.23 at 28); the logistic fit (about 6.96 - 0.457 x, boundary about 15.2 words, 33 of 40 correct); the spam fit
+(P at 3 occurrences about 0.54) and the monotone behaviour of the threshold slider.
+
+## How the numbers get into the prose
+
+Every number in a step card is a placeholder such as `{{mse}}` or `{{nCorrect}}` that `app.js` fills from `lr-math.js`
+when the page loads (`{{t:...}}` gives a TeX-safe minus). Captions under the figures are built in `app.js` from the same
+module. If you change the data or the fits, the text follows; nothing is typed in twice.
+
+## Regenerate the data (optional)
 
 ```bash
 uv run --no-project --with numpy python generate_data.py
 ```
 
-If the numbers change (new seed), re-check the handful of prose spots that quote real
-values: the fitted line in scene 7's card (`ŷ = 93.3 − 2.19·x`), scene 11's
-"33 of 40", scene 9's "1.07 / −0.23", scene 12's "three times 'free'" claim.
+This rewrites `data.js` and `data.json`. To change the page's data, paste the new `essays` and `spam` arrays into
+`lr-math.js` (the tests will tell you if anything drifts).
 
 ## Design notes
 
-- **Scenes are idempotent `render(p)` functions** — the scroll engine calls the active
-  scene with progress `0…1` every frame, so scrolling backward re-renders earlier states
-  for free. New scenes = new `data-scene` section + a `scenes.sXX` function.
-- **Interactivity is CSS-gated** by `body[data-scene]` (drag handles in s02, slider in s12).
-- `prefers-reduced-motion` snaps scenes to their end state instead of scrubbing.
-- `window.__renderScene(id, p)` is a debug hook for testing individual scenes from the console.
+- **One quantity everywhere.** "How wrong is a line" is always the *mean* squared error (the average squared miss),
+  in the caption of the drawing step, the squares, the sweep, the descent and the learning-rate curves.
+- **Scenes are pure functions** of (chapter step, scroll progress, user state). Scrolling backwards, fast scrolling and
+  jumping with the dot navigation all just redraw. The user's line and the spam threshold live in one small state object.
+- **Gradient descent runs on rescaled x** (as real tools do) and every step is converted back to the raw intercept and
+  slope, so the path can be drawn on the raw loss map. The map's rings are exact: the loss is a quadratic, so its level
+  sets are ellipses (`lossEllipse` in `lr-math.js`).
+- **Controls**: the line has two drag handles (pointer events with capture, touch-friendly, also keyboard-operable) and two
+  sliders; the spam threshold is a labelled range input ("flag more" on the left, "flag less" on the right).
+- `prefers-reduced-motion` shows every scene in its finished state.

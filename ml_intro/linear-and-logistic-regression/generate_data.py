@@ -1,10 +1,11 @@
-"""Frozen data + fits for the scrollytelling page 'From a Number to a Yes'.
+"""Provenance: how the SYNTHETIC data for 'From a Number to a Yes' was generated.
 
 Run:  uv run --no-project --with numpy python generate_data.py
-Writes: data.json  (embedded verbatim into index.html as DATA)
+Writes: data.json and data.js (the numbers this seeded run produced).
 
-Everything is seeded and reproducible. The page contains no live math beyond
-plugging frozen parameters into formulas, so the visuals are stable forever.
+The page does not load these files. The two datasets (40 made-up essays, 34 made-up emails) are frozen in
+lr-math.js, which recomputes every fit in the browser; lr-math.test.js checks that the JavaScript agrees with
+data.js. Everything here is seeded and reproducible.
 """
 import json
 
