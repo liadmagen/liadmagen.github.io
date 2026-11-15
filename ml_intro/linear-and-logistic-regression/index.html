@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From a Number to a Yes — Linear and Logistic Regression</title>
+<meta name="description" content="A scroll-driven visual introduction to linear and logistic regression for language students: draw a line through made-up essays, watch a computer slide downhill to the best one, then bend the same line into a yes/no machine and a spam filter.">
+<link rel="stylesheet" href="../vendor/katex/katex.min.css">
+<style>
+  :root{
+    --ink:#1d2733; --muted:#55636f; --bg:#faf9f6; --card:#ffffff;
+    /* one meaning per colour: purple = your line / the focus, blue = the machine's line and the "yes" class,
+       orange = error (gaps, squares) and the "no" class, red = a mistake, teal = the best possible */
+    --blue:#1f6fd1; --blue-soft:#dbe8fa; --orange:#d9730d; --orange-soft:#fbe6d0;
+    --grey:#7d8894; --teal:#0f8a8a; --line:#e5e1d8; --accent:#6d5bd0; --red:#b3261e;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;font-size:17px;}
+  h1,h2,h3{line-height:1.2}
+  a{color:var(--blue)}
+  .katex{font-size:1.05em}
+
+  /* ---------- hero ---------- */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;
+    text-align:center;padding:3rem 1.2rem;background:
+    radial-gradient(1200px 500px at 20% -10%, #e8efff 0%, transparent 60%),
+    radial-gradient(1000px 500px at 85% 110%, #fdeeda 0%, transparent 55%), var(--bg);}
+  .hero .kicker{letter-spacing:.2em;text-transform:uppercase;font-size:.78rem;color:var(--accent);font-weight:700}
+  .hero h1{font-size:clamp(2.1rem,6vw,3.9rem);margin:.6rem 0 .6rem;max-width:18ch}
+  .hero .lead{max-width:60ch;color:var(--muted);font-size:1.12rem;margin:.3rem 0}
+  .two{display:grid;grid-template-columns:1fr auto 1fr;gap:.4rem .9rem;align-items:center;margin:1.6rem 0 1rem;text-align:left;
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1rem 1.3rem;
+    box-shadow:0 10px 30px rgba(30,40,60,.07);font-size:1rem;max-width:660px;width:100%}
+  .two .arrow{color:var(--muted);font-weight:700}
+  .two .ans{font-weight:700;border-radius:10px;padding:.25rem .7rem;border:2px solid;display:inline-block}
+  .two .ans.n{background:var(--blue-soft);border-color:var(--blue);color:#154f98}
+  .two .ans.y{background:var(--orange-soft);border-color:var(--orange);color:#8a4a07}
+  .two .tagline{grid-column:1/-1;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:.3rem}
+  .hero .uses{max-width:60ch;font-size:.95rem;color:var(--muted);margin-top:.8rem}
+  .scroll-hint{margin-top:2.2rem;color:var(--muted);font-size:.85rem;animation:bob 1.8s ease-in-out infinite}
+  .scroll-hint .arrow{display:block;font-size:1.4rem}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
+
+  /* ---------- progress nav ---------- */
+  #dotnav{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:12px}
+  #dotnav a{width:12px;height:12px;border-radius:50%;background:#cfc9bc;display:block;position:relative;transition:background .3s,transform .3s}
+  #dotnav a.on{background:var(--accent);transform:scale(1.35)}
+  #dotnav a span{position:absolute;right:20px;top:50%;transform:translateY(-50%);white-space:nowrap;
+    background:var(--ink);color:#fff;font-size:.72rem;padding:.15rem .55rem;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s}
+  #dotnav a:hover span,#dotnav a:focus span{opacity:1}
+
+  /* ---------- scrolly layout ---------- */
+  .chapter{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:1.5rem;
+    padding:0 clamp(.5rem,3vw,3rem);align-items:start}
+  .chapter + .chapter{margin-top:10vh}
+  .sticky{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
+    justify-content:center;align-items:center;gap:.4rem;padding:.6rem 0;min-width:0}
+  .sticky svg{width:100%;max-width:720px;height:auto;max-height:calc(100vh - 190px);background:var(--card);
+    border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(30,40,60,.07)}
+  .sticky .caption{font-size:.92rem;color:var(--muted);text-align:center;min-height:3em;max-width:720px;line-height:1.45}
+  .sticky .caption b{color:var(--ink)}
+  .controls{display:none;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;justify-content:center;max-width:720px;font-size:.9rem}
+  .controls.on{display:flex}
+  .controls.off{opacity:.45}
+  .controls button:disabled,.controls input:disabled,.controls select:disabled{cursor:not-allowed}
+  .controls label{display:flex;align-items:center;gap:.4rem;color:var(--muted)}
+  .controls select,.controls button{font:inherit;font-size:.9rem;padding:.25rem .55rem;border-radius:8px;
+    border:1px solid #c9c3b6;background:#fff;color:var(--ink)}
+  .controls button{cursor:pointer;background:#f4f2ec}
+  .controls button:hover:not(:disabled){background:#ece8dd}
+  .controls button[aria-pressed=true],.controls button[aria-pressed=true]:hover:not(:disabled){background:var(--accent);color:#fff;border-color:var(--accent)}
+  .controls input[type=range]{width:min(190px,34vw);accent-color:var(--accent)}
+  .controls .out{font-family:var(--mono);color:var(--ink);min-width:4ch}
+  .controls .end{font-size:.82rem;color:var(--muted);white-space:nowrap}
+  :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .steps{display:flex;flex-direction:column;gap:55vh;padding:52vh 0 55vh} /* the figure pins before the first step becomes active */
+  #ch1 .steps{padding-bottom:170vh}
+  #ch3 .steps,#ch6 .steps{padding-bottom:120vh} /* the figure stays pinned while a control below it is brought into view */
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:1.2rem 1.35rem;box-shadow:0 6px 18px rgba(30,40,60,.06);
+    opacity:.25;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease}
+  .step.active{opacity:1;transform:none}
+  .step h3{margin:.1rem 0 .5rem;font-size:1.22rem}
+  .step p{margin:.45rem 0;color:#33404f}
+  .step .tag{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--accent);background:#efecfb;border-radius:6px;padding:.12rem .5rem;margin-bottom:.4rem}
+  .step .opt{color:#7a4a00;background:#fdf0d8;border-radius:6px;padding:.1rem .45rem;font-size:.72rem;font-weight:700;margin-left:.3rem;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+  .formula{display:block;background:#f4f2ec;border:1px solid var(--line);border-radius:10px;
+    padding:.5rem .8rem;margin:.55rem 0;overflow-x:auto;text-align:center}
+  .formula .katex{font-size:1em}
+  .note{font-size:.88rem;color:var(--muted)}
+  .legend-b,.legend-o{white-space:nowrap;font-weight:700}
+  .legend-b{color:#154f98} .legend-o{color:#8a4a07}
+  .predict{border:2px dashed #cfc7f0;background:#f8f6ff;border-radius:12px;padding:.6rem .9rem;margin:.6rem 0}
+  .predict .q{font-weight:600;margin:0 0 .4rem}
+  .predict button{font:inherit;font-size:.9rem;padding:.25rem .8rem;margin:0 .4rem .3rem 0;border-radius:8px;border:1px solid #b9aeea;background:#fff;cursor:pointer}
+  .predict button:hover{background:#efecfb}
+  .predict button.picked{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .predict .reveal{margin-top:.5rem;padding-top:.5rem;border-top:1px solid #dcd6f5}
+  .predict .reveal[hidden]{display:none}
+  svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  foreignObject{overflow:visible}
+  .svgmath{font-size:14px;line-height:1.3;color:var(--ink);width:100%;white-space:nowrap}
+  .svgmath.c{text-align:center}
+  .svgmath.r{text-align:right}
+  #tip{position:fixed;z-index:100;pointer-events:none;background:var(--ink);color:#fff;font-size:.82rem;line-height:1.4;
+    padding:.4rem .6rem;border-radius:8px;max-width:240px;opacity:0;transition:opacity .12s}
+  #tip.on{opacity:1}
+  .hit{cursor:pointer}
+  .handle{cursor:grab;touch-action:none}
+  .handle:active{cursor:grabbing}
+  .handle:focus-visible{outline:none}
+  .handle:focus-visible .hring{stroke:var(--ink);stroke-width:3}
+
+  footer{border-top:1px solid var(--line);margin-top:8vh;padding:3rem 1.2rem 4rem;
+    text-align:center;color:var(--muted);font-size:.9rem}
+  footer p{max-width:72ch;margin:.5rem auto}
+
+  @media (prefers-reduced-motion:reduce){.step{transition:none}html{scroll-behavior:auto}.scroll-hint{animation:none}}
+
+  @media (max-width:920px){
+    body{font-size:16px}
+    .chapter{grid-template-columns:minmax(0,1fr)}
+    /* The figure is pinned in the top half of the screen; a step becomes active when its top
+       reaches 66% of the viewport height (see app.js), so the active box sits fully below the figure. */
+    .sticky{top:0;height:52vh;z-index:5;padding:.25rem 0;background:var(--bg);gap:.2rem;justify-content:flex-start}
+    .sticky svg{max-height:calc(52vh - 78px)}
+    .sticky .caption{font-size:.78rem;min-height:2.6em;line-height:1.3;padding:0 .5rem}
+    .controls{gap:.25rem .6rem;font-size:.82rem}
+    .controls button{padding:.2rem .5rem}
+    .controls input[type=range]{width:30vw}
+    .controls .out{display:none}
+    #ch1 .sticky,#ch3 .sticky,#ch6 .sticky{height:54vh}
+    #ch1 .sticky svg,#ch3 .sticky svg,#ch6 .sticky svg{max-height:calc(54vh - 112px)}
+    .caption .lg{display:none}
+    #ch1 .controls label .lbl{display:none}
+    .step,.predict,.predict button,.step .controls button,.step .controls input{scroll-margin-top:60vh}
+    .steps,#ch1 .steps,#ch3 .steps,#ch6 .steps{padding:58vh 0 40vh;gap:34vh}
+    .formula{padding:.4rem .5rem}.formula .katex{font-size:.92em}
+    .two{grid-template-columns:1fr;text-align:center}.two .arrow{transform:rotate(90deg)}
+    #dotnav{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="kicker">Introduction to ML for Language Technologies</div>
+  <h1>From a Number to a Yes</h1>
+  <p class="lead">How does a computer learn to give a score, and then to answer yes or no?</p>
+  <div class="two" aria-label="Two kinds of question about an essay">
+    <span>How readable is this essay?</span><span class="arrow">→</span><span class="ans n">a number: 62 out of 100</span>
+    <span>Is it readable for a first-year?</span><span class="arrow">→</span><span class="ans y">a decision: yes</span>
+    <span class="tagline">the first is linear regression, the second logistic regression</span>
+  </div>
+  <p class="lead">Both use the same machine: a straight line, plus one small bend. You will draw the line yourself,
+     see how wrong it is, and watch a computer slide downhill to the best one.</p>
+  <p class="uses">The data on this page is made up: {{n}} invented essays and {{snN}} invented emails, so that we can see every dot at once.
+     The ideas are the ones behind spam filters and many text classifiers.</p>
+  <div class="scroll-hint">scroll to begin<span class="arrow">↓</span></div>
+</header>
+
+<nav id="dotnav" aria-label="Chapters"></nav>
+<div id="tip" role="status"></div>
+
+<main>
+
+  <!-- ================= Chapter 1 ================= -->
+  <section class="chapter" id="ch1">
+    <div class="sticky">
+      <svg id="viz1" role="img" aria-label="Scatter plot of made-up essays: average sentence length against a teacher's readability rating, and a line you can draw"></svg>
+      <div class="caption" id="cap1"></div>
+      <div class="controls" id="ctl1">
+        <label for="endL"><span class="lbl">Left end</span> <input id="endL" type="range" min="0" max="100" step="1" value="99" aria-label="Height of the line at 8 words"></label>
+        <label for="endR"><span class="lbl">Right end</span> <input id="endR" type="range" min="0" max="100" step="1" value="40" aria-label="Height of the line at 26 words"></label>
+        <button type="button" id="lineReset">Reset line</button>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="data">
+        <span class="tag">1 · Data and a line</span>
+        <h3>{{n}} made-up essays, one hunch</h3>
+        <p>Every dot is one essay. Across: its average sentence length, in words. Up: a teacher's readability rating, 0 to 100.
+           (We invented these essays, so that every dot is visible.)</p>
+        <p>Notice the drift: <i>longer sentences, lower ratings</i>. Machine learning starts with a hunch like this.</p>
+      </div>
+      <div class="step" data-scene="draw">
+        <span class="tag">1 · Data and a line</span>
+        <h3>Draw your best line</h3>
+        <div class="predict"><p class="q">Predict first: where would you draw a line that turns sentence length into a rating? Say it out loud, then try.</p></div>
+        <p>Grab the two handles (or use the sliders). A line is two numbers: where it starts and how steeply it falls.
+           The caption scores your line with one number, the <b>loss</b>. Lower is better.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 2 ================= -->
+  <section class="chapter" id="ch2">
+    <div class="sticky">
+      <svg id="viz2" role="img" aria-label="The gaps between the essays and a line, turned into squares; then a sweep through lines with their error numbers"></svg>
+      <div class="caption" id="cap2"></div><div class="controls" id="ctl2"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="squares">
+        <span class="tag">2 · How wrong is a line?</span>
+        <h3>Gaps become squares</h3>
+        <p>The line is a machine: sentence length in, a rating out. Drop a segment from each essay to the line: that gap is the
+           <b>residual</b>. Now turn each gap into a real square.</p>
+        <p>Gaps above and below the line would cancel out; squares do not. And a big miss costs far more than a small one.</p>
+      </div>
+      <div class="step" data-scene="number">
+        <span class="tag">2 · How wrong is a line?</span>
+        <h3>Every line has one number</h3>
+        <p>Average the {{n}} squares: the <b>mean squared error</b>, in words the average squared miss. Bad lines score big,
+           better lines small. The best line here scores about {{mse}}.</p>
+        <span class="formula">\(\mathrm{MSE}=\dfrac{1}{n}\sum_{i=1}^{n}\big(y_i-\hat y_i\big)^2\)</span>
+        <p class="note">y is the real rating, ŷ (“y-hat”) the line's answer. Linear regression has one obsession: the smallest MSE.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 3 ================= -->
+  <section class="chapter" id="ch3">
+    <div class="sticky">
+      <svg id="viz3" role="img" aria-label="Gradient descent: the line being tried next to a loss map with a ball rolling downhill; loss curves for three learning rates; the finished line"></svg>
+      <div class="caption" id="cap3"></div>
+      <div class="controls" id="ctl3">
+        <button type="button" data-lr="small" aria-pressed="false">Too small</button>
+        <button type="button" data-lr="good" aria-pressed="true">Just right</button>
+        <button type="button" data-lr="large" aria-pressed="false">Too big</button>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="hotcold">
+        <span class="tag">3 · Finding the best line</span>
+        <h3>The hot–cold game</h3>
+        <p>A model cannot eyeball the dots as you did. It plays hot and cold: stand on a line, feel which way the loss falls fastest,
+           take a small step, repeat. This loop is <b>gradient descent</b>.</p>
+        <p>On the right every point is one possible line, coloured by its loss (red hot, yellow cold). The ball is the model.</p>
+      </div>
+      <div class="step" data-scene="valley">
+        <span class="tag">3 · Finding the best line</span>
+        <h3>Why a long, thin valley?</h3>
+        <p>The rings join lines with equal loss. They are long and thin because start and slope trade off: a steeper line
+           needs a higher start to stay in the middle of the dots.</p>
+        <p>Slide along the valley floor and the line just pivots around the middle, losing little. (We rescaled sentence length first, as real tools do, to make the descent smooth.)</p>
+      </div>
+      <div class="step" data-scene="rate">
+        <span class="tag">3 · Finding the best line</span>
+        <h3>How big is a step? <span class="opt">learning rate</span></h3>
+        <p>The <b>learning rate</b> is the size of each step. Too small and training crawls: after {{smallSteps}} steps the loss is still
+           {{lossSmall}}. Too big and it overshoots the valley and the loss explodes. Just right settles in {{goodSteps}} steps.
+           Press the buttons to compare.</p>
+      </div>
+      <div class="step" data-scene="machine">
+        <span class="tag">3 · Finding the best line</span>
+        <h3>The finished machine</h3>
+        <p>The descent ends at
+           <span class="formula">\(\hat y = {{t:b0}} - {{t:b1}}\,x\)</span>
+           In words: <b>each extra word per sentence costs about {{b1r}} rating points.</b> The {{b0}} is the rating of a 0-word sentence;
+           no essay has one, so do not read meaning into it.</p>
+        <p>A new essay with 12-word sentences gets ŷ ≈ {{pred12}}. Features in, a number out.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 4 ================= -->
+  <section class="chapter" id="ch4">
+    <div class="sticky">
+      <svg id="viz4" role="img" aria-label="The ratings collapse into two rows, readable and not readable; a line fitted to those zeros and ones leaves the 0 to 1 range"></svg>
+      <div class="caption" id="cap4"></div><div class="controls" id="ctl4"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="pivot">
+        <span class="tag">4 · A different question</span>
+        <h3>A yes/no question</h3>
+        <p>Now the writing program wants a decision, not a rating: is this essay readable for a first-year? We say <b>yes</b> when the
+           teacher's rating is at least {{pass}}: {{nRead}} essays are readable, {{nNot}} are not.</p>
+        <p>Watch the dots collapse into two rows. Each keeps its sentence length.</p>
+      </div>
+      <div class="step" data-scene="fails">
+        <span class="tag">4 · A different question</span>
+        <h3>The number machine fails</h3>
+        <p>We already own a machine that outputs numbers. Why not fit the line to the 1s and 0s?</p>
+        <div class="predict" data-pick="">
+          <p class="q">Predict: what will this line answer for a very short sentence, 6 words?</p>
+          <button type="button" data-a="one">Exactly 1</button><button type="button" data-a="between">Between 0 and 1</button><button type="button" data-a="over">More than 1</button>
+          <div class="reveal" hidden><b>More than 1: {{ll6}}.</b> At 28 words it says {{ll28}}, a negative probability. The line answers a question
+            nobody asked, in units that do not exist.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 5 ================= -->
+  <section class="chapter" id="ch5">
+    <div class="sticky">
+      <svg id="viz5" role="img" aria-label="The line's score squashed into a probability by the S-curve, then the decision boundary, the log-loss penalty and the odds"></svg>
+      <div class="caption" id="cap5"></div><div class="controls" id="ctl5"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="squish">
+        <span class="tag">5 · Squish, then decide</span>
+        <h3>Squish the line <span class="opt">the sigmoid</span></h3>
+        <p>For yes/no the line is learned again: its score <b>z</b> is evidence. Big positive z says readable, big negative says not.
+           Before anyone sees it, push z through the S-curve σ: any number lands between 0 and 1, a probability.</p>
+        <span class="formula">\(z=\beta_0+\beta_1x,\qquad \sigma(z)=\dfrac{1}{1+e^{-z}}\)</span>
+        <p class="note">Here z = {{lb0}} − {{lb1}}·x. Linear regression, wrapped in a bend.</p>
+      </div>
+      <div class="step" data-scene="decide">
+        <span class="tag">5 · Squish, then decide</span>
+        <h3>From probability to decision</h3>
+        <p>Pick a threshold, 0.5 to start: above it, say yes. Where the curve crosses it is the <b>decision boundary</b>, near
+           {{bound}}-word sentences. The model gets <b>{{nCorrect}} of {{n}}</b> right; the {{nMiss}} circled essays are its mistakes.</p>
+      </div>
+      <div class="step" data-scene="logloss">
+        <span class="tag">5 · Squish, then decide</span>
+        <h3>How it learns: log-loss <span class="opt">optional</span></h3>
+        <p>Squared error suits numbers. For probabilities the penalty is minus the log of the probability given to the <i>right</i> answer:
+           small if the model was right and sure, huge if it was sure and wrong.</p>
+        <span class="formula">\(\text{penalty}=-\ln p_{\text{right}}\)</span>
+        <p class="note">Averaged over the {{n}} essays: log-loss {{logloss}}.</p>
+      </div>
+      <div class="step" data-scene="odds">
+        <span class="tag">5 · Squish, then decide</span>
+        <h3>What the slope means: odds <span class="opt">optional</span></h3>
+        <p><b>Odds</b> are probability over its complement: 75% is 3 to 1. Each extra word multiplies the odds of “readable” by
+           <span class="formula" style="display:inline;padding:.1rem .4rem">\(e^{\beta_1}=e^{ {{t:lb1neg}} }\approx {{t:odds}}\)</span>
+           a cut of about {{oddsCut}}, wherever you start.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 6 ================= -->
+  <section class="chapter" id="ch6">
+    <div class="sticky">
+      <svg id="viz6" role="img" aria-label="Made-up emails: how often the word free appears against spam probability, with a threshold you can slide; then the two lenses side by side"></svg>
+      <div class="caption" id="cap6"></div>
+      <div class="controls" id="ctl6">
+        <span class="end">flag more</span>
+        <input id="thr" type="range" min="0.1" max="0.9" step="0.05" value="0.5" aria-label="Spam threshold: left flags more email, right flags less">
+        <span class="end">flag less</span>
+        <span class="out" id="thrOut" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="spam">
+        <span class="tag">6 · Spam and recap</span>
+        <h3>Same machine, new problem: spam</h3>
+        <p>This is your spam filter, in miniature: {{snN}} made-up emails and one feature, how often the word <i>free</i> appears.
+           The curve says {{snMin}} times is more likely spam than not. Slide the threshold.</p>
+        <div class="predict" data-pick="">
+          <p class="q">Predict: if you raise the threshold, do false alarms go up or down?</p>
+          <button type="button" data-a="up">Up</button><button type="button" data-a="down">Down</button>
+          <div class="reveal" hidden><b>Down</b>: {{spamFa 0.5}} real emails flagged at 0.5, {{spamFa 0.8}} at 0.8. The price: more spam slips through.
+            Every deployed classifier is this slider.</div>
+        </div>
+      </div>
+      <div class="step" data-scene="lenses">
+        <span class="tag">6 · Spam and recap</span>
+        <h3>Same machine, two lenses</h3>
+        <p>Linear regression answers a <i>number</i>; logistic regression wraps the same weighted sum in σ and answers a <i>probability</i>.
+           Real models add more measurements:
+           <span class="formula">\(\hat y=\beta_0+\beta_1x_1+\beta_2x_2+\cdots\)</span>
+           Swap σ for softmax for many classes; stack such machines and you are walking toward neural networks.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p><b>From a Number to a Yes: a visual introduction to linear and logistic regression.</b>
+     Part of the <i>Introduction to ML for Language Technologies</i> course materials. Inspired by
+     <a href="https://www.r2d3.us/visual-intro-to-machine-learning-part-1/">R2D3: A Visual Introduction to Machine Learning</a>.</p>
+  <p>Further reading: Jurafsky &amp; Martin,
+     <a href="https://web.stanford.edu/~jurafsky/slp3/5.pdf">Speech and Language Processing, chapter 5 (logistic regression)</a>.</p>
+  <p>The {{n}} essays and {{snN}} emails are synthetic (invented with a seeded random generator, see <code>generate_data.py</code>).
+     Every fit and number on this page is computed in your browser by <code>lr-math.js</code> (unit-tested by <code>lr-math.test.js</code>).
+     The page works offline; open the file directly.</p>
+</footer>
+
+<script src="../vendor/katex/katex.min.js"></script>
+<script src="../vendor/katex/auto-render.min.js" onerror="this.onerror=null"></script>
+<script src="lr-math.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
