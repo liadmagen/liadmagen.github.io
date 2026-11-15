@@ -3,994 +3,391 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>From a Number to a Yes — linear &amp; logistic regression, visualised</title>
+<title>From a Number to a Yes — Linear and Logistic Regression</title>
+<meta name="description" content="A scroll-driven visual introduction to linear and logistic regression for language students: draw a line through made-up essays, watch a computer slide downhill to the best one, then bend the same line into a yes/no machine and a spam filter.">
+<link rel="stylesheet" href="../vendor/katex/katex.min.css">
 <style>
-:root{
-  --paper:#fbfaf7; --panel:#ffffff; --ink:#252932; --muted:#6d7280; --line:#e2ded4;
-  --blue:#0072B2; --verm:#D55E00; --orange:#E69F00; --red:#b91c1c; --green:#009E73;
-}
-*{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{margin:0;background:var(--paper);color:var(--ink);
-     font:17px/1.65 Georgia,'Times New Roman',serif;}
-a{color:var(--blue)}
-a:hover{color:var(--verm)}
-header.intro{min-height:92vh;display:flex;flex-direction:column;justify-content:center;
-  align-items:center;text-align:center;padding:4rem 1.5rem;max-width:52rem;margin:0 auto}
-.kicker{font:600 12px/1.4 system-ui,sans-serif;letter-spacing:.18em;text-transform:uppercase;color:var(--verm)}
-h1{font-size:clamp(2.3rem,5vw,3.7rem);margin:.55rem 0 .4rem;line-height:1.1;font-weight:700}
-.sub{font-size:1.16rem;color:var(--muted);max-width:37rem;margin:0}
-.cue{margin-top:3.2rem;color:var(--muted);font:14px system-ui;animation:bob 1.7s ease-in-out infinite}
-@keyframes bob{50%{transform:translateY(9px)}}
-@media (prefers-reduced-motion:reduce){.cue{animation:none}html{scroll-behavior:auto}}
+  :root{
+    --ink:#1d2733; --muted:#55636f; --bg:#faf9f6; --card:#ffffff;
+    /* one meaning per colour: purple = your line / the focus, blue = the machine's line and the "yes" class,
+       orange = error (gaps, squares) and the "no" class, red = a mistake, teal = the best possible */
+    --blue:#1f6fd1; --blue-soft:#dbe8fa; --orange:#d9730d; --orange-soft:#fbe6d0;
+    --grey:#7d8894; --teal:#0f8a8a; --line:#e5e1d8; --accent:#6d5bd0; --red:#b3261e;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;font-size:17px;}
+  h1,h2,h3{line-height:1.2}
+  a{color:var(--blue)}
+  .katex{font-size:1.05em}
 
-main.scrolly{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);
-  gap:1.5rem 2.5rem;max-width:78rem;margin:0 auto;padding:0 1.5rem}
-#figure{position:sticky;top:0;height:100vh;display:flex;align-items:center}
-#figInner{position:relative;width:100%}
-svg#chart{width:100%;height:auto;display:block;overflow:hidden}
-svg text{font-family:system-ui,sans-serif}
-.axis line{stroke:#c9c4b8;stroke-width:1}
-.axis text{fill:var(--muted);font-size:11px}
-.axtitle{fill:var(--muted);font-size:11.5px}
-.paneltitle{fill:#4a4f5a;font-size:12px;font-weight:600}
+  /* ---------- hero ---------- */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;
+    text-align:center;padding:3rem 1.2rem;background:
+    radial-gradient(1200px 500px at 20% -10%, #e8efff 0%, transparent 60%),
+    radial-gradient(1000px 500px at 85% 110%, #fdeeda 0%, transparent 55%), var(--bg);}
+  .hero .kicker{letter-spacing:.2em;text-transform:uppercase;font-size:.78rem;color:var(--accent);font-weight:700}
+  .hero h1{font-size:clamp(2.1rem,6vw,3.9rem);margin:.6rem 0 .6rem;max-width:18ch}
+  .hero .lead{max-width:60ch;color:var(--muted);font-size:1.12rem;margin:.3rem 0}
+  .two{display:grid;grid-template-columns:1fr auto 1fr;gap:.4rem .9rem;align-items:center;margin:1.6rem 0 1rem;text-align:left;
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1rem 1.3rem;
+    box-shadow:0 10px 30px rgba(30,40,60,.07);font-size:1rem;max-width:660px;width:100%}
+  .two .arrow{color:var(--muted);font-weight:700}
+  .two .ans{font-weight:700;border-radius:10px;padding:.25rem .7rem;border:2px solid;display:inline-block}
+  .two .ans.n{background:var(--blue-soft);border-color:var(--blue);color:#154f98}
+  .two .ans.y{background:var(--orange-soft);border-color:var(--orange);color:#8a4a07}
+  .two .tagline{grid-column:1/-1;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:.3rem}
+  .hero .uses{max-width:60ch;font-size:.95rem;color:var(--muted);margin-top:.8rem}
+  .scroll-hint{margin-top:2.2rem;color:var(--muted);font-size:.85rem;animation:bob 1.8s ease-in-out infinite}
+  .scroll-hint .arrow{display:block;font-size:1.4rem}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
 
-#hud{position:absolute;top:1.5%;left:1%;font:600 10.5px/1.5 system-ui,sans-serif;
-  letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
-#chip{position:absolute;left:50%;bottom:2.2%;transform:translateX(-50%);text-align:center;
-  font:13.5px/1.45 system-ui,sans-serif;color:var(--ink);background:rgba(255,255,255,.93);
-  border:1px solid var(--line);border-radius:9px;padding:.5rem .85rem;max-width:90%;
-  box-shadow:0 1px 5px rgba(40,30,10,.06)}
-#chip b{color:var(--verm);font-size:1.08em}
-#chip .lbl{color:var(--muted)}
-#sliderWrap{position:absolute;left:50%;bottom:11%;transform:translateX(-50%);display:none;
-  align-items:center;gap:.55rem;background:rgba(255,255,255,.95);border:1px solid var(--line);
-  border-radius:9px;padding:.42rem .8rem;font:12.5px system-ui,sans-serif;color:var(--muted);white-space:nowrap}
-body[data-scene="s12"] #sliderWrap{display:flex}
-#sliderWrap input{width:150px;accent-color:var(--verm)}
+  /* ---------- progress nav ---------- */
+  #dotnav{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:12px}
+  #dotnav a{width:12px;height:12px;border-radius:50%;background:#cfc9bc;display:block;position:relative;transition:background .3s,transform .3s}
+  #dotnav a.on{background:var(--accent);transform:scale(1.35)}
+  #dotnav a span{position:absolute;right:20px;top:50%;transform:translateY(-50%);white-space:nowrap;
+    background:var(--ink);color:#fff;font-size:.72rem;padding:.15rem .55rem;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s}
+  #dotnav a:hover span,#dotnav a:focus span{opacity:1}
 
-.handle{fill:#fff;stroke:var(--verm);stroke-width:2.6;opacity:0;pointer-events:none;cursor:grab}
-body[data-scene="s02"] .handle{opacity:1;pointer-events:all}
-.handle:active{cursor:grabbing}
+  /* ---------- scrolly layout ---------- */
+  .chapter{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:1.5rem;
+    padding:0 clamp(.5rem,3vw,3rem);align-items:start}
+  .chapter + .chapter{margin-top:10vh}
+  .sticky{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
+    justify-content:center;align-items:center;gap:.4rem;padding:.6rem 0;min-width:0}
+  .sticky svg{width:100%;max-width:720px;height:auto;max-height:calc(100vh - 190px);background:var(--card);
+    border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(30,40,60,.07)}
+  .sticky .caption{font-size:.92rem;color:var(--muted);text-align:center;min-height:3em;max-width:720px;line-height:1.45}
+  .sticky .caption b{color:var(--ink)}
+  .controls{display:none;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;justify-content:center;max-width:720px;font-size:.9rem}
+  .controls.on{display:flex}
+  .controls.off{opacity:.45}
+  .controls button:disabled,.controls input:disabled,.controls select:disabled{cursor:not-allowed}
+  .controls label{display:flex;align-items:center;gap:.4rem;color:var(--muted)}
+  .controls select,.controls button{font:inherit;font-size:.9rem;padding:.25rem .55rem;border-radius:8px;
+    border:1px solid #c9c3b6;background:#fff;color:var(--ink)}
+  .controls button{cursor:pointer;background:#f4f2ec}
+  .controls button:hover:not(:disabled){background:#ece8dd}
+  .controls button[aria-pressed=true],.controls button[aria-pressed=true]:hover:not(:disabled){background:var(--accent);color:#fff;border-color:var(--accent)}
+  .controls input[type=range]{width:min(190px,34vw);accent-color:var(--accent)}
+  .controls .out{font-family:var(--mono);color:var(--ink);min-width:4ch}
+  .controls .end{font-size:.82rem;color:var(--muted);white-space:nowrap}
+  :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .steps{display:flex;flex-direction:column;gap:55vh;padding:52vh 0 55vh} /* the figure pins before the first step becomes active */
+  #ch1 .steps{padding-bottom:170vh}
+  #ch3 .steps,#ch6 .steps{padding-bottom:120vh} /* the figure stays pinned while a control below it is brought into view */
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:1.2rem 1.35rem;box-shadow:0 6px 18px rgba(30,40,60,.06);
+    opacity:.25;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease}
+  .step.active{opacity:1;transform:none}
+  .step h3{margin:.1rem 0 .5rem;font-size:1.22rem}
+  .step p{margin:.45rem 0;color:#33404f}
+  .step .tag{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--accent);background:#efecfb;border-radius:6px;padding:.12rem .5rem;margin-bottom:.4rem}
+  .step .opt{color:#7a4a00;background:#fdf0d8;border-radius:6px;padding:.1rem .45rem;font-size:.72rem;font-weight:700;margin-left:.3rem;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+  .formula{display:block;background:#f4f2ec;border:1px solid var(--line);border-radius:10px;
+    padding:.5rem .8rem;margin:.55rem 0;overflow-x:auto;text-align:center}
+  .formula .katex{font-size:1em}
+  .note{font-size:.88rem;color:var(--muted)}
+  .legend-b,.legend-o{white-space:nowrap;font-weight:700}
+  .legend-b{color:#154f98} .legend-o{color:#8a4a07}
+  .predict{border:2px dashed #cfc7f0;background:#f8f6ff;border-radius:12px;padding:.6rem .9rem;margin:.6rem 0}
+  .predict .q{font-weight:600;margin:0 0 .4rem}
+  .predict button{font:inherit;font-size:.9rem;padding:.25rem .8rem;margin:0 .4rem .3rem 0;border-radius:8px;border:1px solid #b9aeea;background:#fff;cursor:pointer}
+  .predict button:hover{background:#efecfb}
+  .predict button.picked{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .predict .reveal{margin-top:.5rem;padding-top:.5rem;border-top:1px solid #dcd6f5}
+  .predict .reveal[hidden]{display:none}
+  svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  foreignObject{overflow:visible}
+  .svgmath{font-size:14px;line-height:1.3;color:var(--ink);width:100%;white-space:nowrap}
+  .svgmath.c{text-align:center}
+  .svgmath.r{text-align:right}
+  #tip{position:fixed;z-index:100;pointer-events:none;background:var(--ink);color:#fff;font-size:.82rem;line-height:1.4;
+    padding:.4rem .6rem;border-radius:8px;max-width:240px;opacity:0;transition:opacity .12s}
+  #tip.on{opacity:1}
+  .hit{cursor:pointer}
+  .handle{cursor:grab;touch-action:none}
+  .handle:active{cursor:grabbing}
+  .handle:focus-visible{outline:none}
+  .handle:focus-visible .hring{stroke:var(--ink);stroke-width:3}
 
-#steps{display:flex;flex-direction:column}
-.step{min-height:100vh;display:flex;align-items:center;padding:1.5rem 0}
-.step .card{background:var(--panel);border:1px solid var(--line);border-radius:13px;
-  padding:1.5rem 1.7rem 1.6rem;max-width:31rem;box-shadow:0 2px 12px rgba(60,50,20,.07)}
-.card h3{font-size:1.42rem;margin:.35rem 0 .65rem;line-height:1.22}
-.card p{margin:.55rem 0;font-size:1.01rem}
-.card sup,.card sub{font-size:.72em}
-.prompt{border-left:3px solid var(--verm);background:#fdf6ee;padding:.6rem .95rem;
-  margin:.75rem 0;font-size:.95rem;border-radius:0 9px 9px 0}
-.prompt strong{color:var(--verm)}
+  footer{border-top:1px solid var(--line);margin-top:8vh;padding:3rem 1.2rem 4rem;
+    text-align:center;color:var(--muted);font-size:.9rem}
+  footer p{max-width:72ch;margin:.5rem auto}
 
-footer{max-width:78rem;margin:0 auto;padding:3.5rem 1.5rem 6rem;display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(15.5rem,1fr));gap:1.2rem}
-footer .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
-  padding:1.15rem 1.35rem;font-size:.95rem;line-height:1.55}
-footer h4{margin:.1rem 0 .45rem;font-size:1.02rem}
-.credit{grid-column:1/-1;color:var(--muted);font-size:.88rem;line-height:1.6}
+  @media (prefers-reduced-motion:reduce){.step{transition:none}html{scroll-behavior:auto}.scroll-hint{animation:none}}
 
-@media (max-width:920px){
-  main.scrolly{grid-template-columns:1fr;gap:0}
-  #figure{height:auto;background:var(--paper);border-bottom:1px solid var(--line);
-    padding:.4rem 0 .15rem;z-index:5}
-  .step{min-height:76vh;padding:1.1rem 0}
-  #hud{font-size:9px}
-  #chip{font-size:11.5px;padding:.4rem .6rem}
-  #sliderWrap{bottom:12%;font-size:11px}
-  #sliderWrap input{width:120px}
-}
+  @media (max-width:920px){
+    body{font-size:16px}
+    .chapter{grid-template-columns:minmax(0,1fr)}
+    /* The figure is pinned in the top half of the screen; a step becomes active when its top
+       reaches 66% of the viewport height (see app.js), so the active box sits fully below the figure. */
+    .sticky{top:0;height:52vh;z-index:5;padding:.25rem 0;background:var(--bg);gap:.2rem;justify-content:flex-start}
+    .sticky svg{max-height:calc(52vh - 78px)}
+    .sticky .caption{font-size:.78rem;min-height:2.6em;line-height:1.3;padding:0 .5rem}
+    .controls{gap:.25rem .6rem;font-size:.82rem}
+    .controls button{padding:.2rem .5rem}
+    .controls input[type=range]{width:30vw}
+    .controls .out{display:none}
+    #ch1 .sticky,#ch3 .sticky,#ch6 .sticky{height:54vh}
+    #ch1 .sticky svg,#ch3 .sticky svg,#ch6 .sticky svg{max-height:calc(54vh - 112px)}
+    .caption .lg{display:none}
+    #ch1 .controls label .lbl{display:none}
+    .step,.predict,.predict button,.step .controls button,.step .controls input{scroll-margin-top:60vh}
+    .steps,#ch1 .steps,#ch3 .steps,#ch6 .steps{padding:58vh 0 40vh;gap:34vh}
+    .formula{padding:.4rem .5rem}.formula .katex{font-size:.92em}
+    .two{grid-template-columns:1fr;text-align:center}.two .arrow{transform:rotate(90deg)}
+    #dotnav{display:none}
+  }
 </style>
 </head>
-<body data-scene="s01">
+<body>
 
-<header class="intro">
-  <div class="kicker">MLT · Modeling — a visual companion to session 06</div>
+<header class="hero">
+  <div class="kicker">Introduction to ML for Language Technologies</div>
   <h1>From a Number to a Yes</h1>
-  <p class="sub">Linear regression, gradient descent and logistic regression —
-    animated, and reacting to your scroll. Built for people who study language,
-    not calculus.</p>
-  <div class="cue">scroll &#9662;</div>
+  <p class="lead">How does a computer learn to give a score, and then to answer yes or no?</p>
+  <div class="two" aria-label="Two kinds of question about an essay">
+    <span>How readable is this essay?</span><span class="arrow">→</span><span class="ans n">a number: 62 out of 100</span>
+    <span>Is it readable for a first-year?</span><span class="arrow">→</span><span class="ans y">a decision: yes</span>
+    <span class="tagline">the first is linear regression, the second logistic regression</span>
+  </div>
+  <p class="lead">Both use the same machine: a straight line, plus one small bend. You will draw the line yourself,
+     see how wrong it is, and watch a computer slide downhill to the best one.</p>
+  <p class="uses">The data on this page is made up: {{n}} invented essays and {{snN}} invented emails, so that we can see every dot at once.
+     The ideas are the ones behind spam filters and many text classifiers.</p>
+  <div class="scroll-hint">scroll to begin<span class="arrow">↓</span></div>
 </header>
 
-<main class="scrolly">
-  <figure id="figure" aria-label="An animated visualization that changes as you scroll">
-    <div id="figInner">
-      <svg id="chart" viewBox="0 0 680 560" role="img"
-           aria-label="Scatter plots, a fitted line, gradient descent on a loss map, a sigmoid curve and a spam threshold slider"></svg>
-      <div id="hud"></div>
-      <div id="chip"></div>
-      <div id="sliderWrap">
-        <span>cautious</span>
-        <input id="threshold" type="range" min="0.1" max="0.9" step="0.05" value="0.5"
-               aria-label="Classification threshold">
-        <span>aggressive</span>
+<nav id="dotnav" aria-label="Chapters"></nav>
+<div id="tip" role="status"></div>
+
+<main>
+
+  <!-- ================= Chapter 1 ================= -->
+  <section class="chapter" id="ch1">
+    <div class="sticky">
+      <svg id="viz1" role="img" aria-label="Scatter plot of made-up essays: average sentence length against a teacher's readability rating, and a line you can draw"></svg>
+      <div class="caption" id="cap1"></div>
+      <div class="controls" id="ctl1">
+        <label for="endL"><span class="lbl">Left end</span> <input id="endL" type="range" min="0" max="100" step="1" value="99" aria-label="Height of the line at 8 words"></label>
+        <label for="endR"><span class="lbl">Right end</span> <input id="endR" type="range" min="0" max="100" step="1" value="40" aria-label="Height of the line at 26 words"></label>
+        <button type="button" id="lineReset">Reset line</button>
       </div>
     </div>
-  </figure>
+    <div class="steps">
+      <div class="step" data-scene="data">
+        <span class="tag">1 · Data and a line</span>
+        <h3>{{n}} made-up essays, one hunch</h3>
+        <p>Every dot is one essay. Across: its average sentence length, in words. Up: a teacher's readability rating, 0 to 100.
+           (We invented these essays, so that every dot is visible.)</p>
+        <p>Notice the drift: <i>longer sentences, lower ratings</i>. Machine learning starts with a hunch like this.</p>
+      </div>
+      <div class="step" data-scene="draw">
+        <span class="tag">1 · Data and a line</span>
+        <h3>Draw your best line</h3>
+        <div class="predict"><p class="q">Predict first: where would you draw a line that turns sentence length into a rating? Say it out loud, then try.</p></div>
+        <p>Grab the two handles (or use the sliders). A line is two numbers: where it starts and how steeply it falls.
+           The caption scores your line with one number, the <b>loss</b>. Lower is better.</p>
+      </div>
+    </div>
+  </section>
 
-  <div id="steps">
+  <!-- ================= Chapter 2 ================= -->
+  <section class="chapter" id="ch2">
+    <div class="sticky">
+      <svg id="viz2" role="img" aria-label="The gaps between the essays and a line, turned into squares; then a sweep through lines with their error numbers"></svg>
+      <div class="caption" id="cap2"></div><div class="controls" id="ctl2"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="squares">
+        <span class="tag">2 · How wrong is a line?</span>
+        <h3>Gaps become squares</h3>
+        <p>The line is a machine: sentence length in, a rating out. Drop a segment from each essay to the line: that gap is the
+           <b>residual</b>. Now turn each gap into a real square.</p>
+        <p>Gaps above and below the line would cancel out; squares do not. And a big miss costs far more than a small one.</p>
+      </div>
+      <div class="step" data-scene="number">
+        <span class="tag">2 · How wrong is a line?</span>
+        <h3>Every line has one number</h3>
+        <p>Average the {{n}} squares: the <b>mean squared error</b>, in words the average squared miss. Bad lines score big,
+           better lines small. The best line here scores about {{mse}}.</p>
+        <span class="formula">\(\mathrm{MSE}=\dfrac{1}{n}\sum_{i=1}^{n}\big(y_i-\hat y_i\big)^2\)</span>
+        <p class="note">y is the real rating, ŷ (“y-hat”) the line's answer. Linear regression has one obsession: the smallest MSE.</p>
+      </div>
+    </div>
+  </section>
 
-    <section class="step" data-scene="s01"><div class="card">
-      <div class="kicker">Act 1 · the number machine</div>
-      <h3>Forty essays, one hunch</h3>
-      <p>Every dot is an essay written by a first-year student. Along the bottom: the
-         average length of its sentences, in words. Up the side: a readability score
-         from 0 to 100.</p>
-      <p>Notice the drift — <em>longer sentences, lower scores</em>. Machine learning
-         starts exactly here: a hunch that one measurement might predict the other.</p>
-    </div></section>
+  <!-- ================= Chapter 3 ================= -->
+  <section class="chapter" id="ch3">
+    <div class="sticky">
+      <svg id="viz3" role="img" aria-label="Gradient descent: the line being tried next to a loss map with a ball rolling downhill; loss curves for three learning rates; the finished line"></svg>
+      <div class="caption" id="cap3"></div>
+      <div class="controls" id="ctl3">
+        <button type="button" data-lr="small" aria-pressed="false">Too small</button>
+        <button type="button" data-lr="good" aria-pressed="true">Just right</button>
+        <button type="button" data-lr="large" aria-pressed="false">Too big</button>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="hotcold">
+        <span class="tag">3 · Finding the best line</span>
+        <h3>The hot–cold game</h3>
+        <p>A model cannot eyeball the dots as you did. It plays hot and cold: stand on a line, feel which way the loss falls fastest,
+           take a small step, repeat. This loop is <b>gradient descent</b>.</p>
+        <p>On the right every point is one possible line, coloured by its loss (red hot, yellow cold). The ball is the model.</p>
+      </div>
+      <div class="step" data-scene="valley">
+        <span class="tag">3 · Finding the best line</span>
+        <h3>Why a long, thin valley?</h3>
+        <p>The rings join lines with equal loss. They are long and thin because start and slope trade off: a steeper line
+           needs a higher start to stay in the middle of the dots.</p>
+        <p>Slide along the valley floor and the line just pivots around the middle, losing little. (We rescaled sentence length first, as real tools do, to make the descent smooth.)</p>
+      </div>
+      <div class="step" data-scene="rate">
+        <span class="tag">3 · Finding the best line</span>
+        <h3>How big is a step? <span class="opt">learning rate</span></h3>
+        <p>The <b>learning rate</b> is the size of each step. Too small and training crawls: after {{smallSteps}} steps the loss is still
+           {{lossSmall}}. Too big and it overshoots the valley and the loss explodes. Just right settles in {{goodSteps}} steps.
+           Press the buttons to compare.</p>
+      </div>
+      <div class="step" data-scene="machine">
+        <span class="tag">3 · Finding the best line</span>
+        <h3>The finished machine</h3>
+        <p>The descent ends at
+           <span class="formula">\(\hat y = {{t:b0}} - {{t:b1}}\,x\)</span>
+           In words: <b>each extra word per sentence costs about {{b1r}} rating points.</b> The {{b0}} is the rating of a 0-word sentence;
+           no essay has one, so do not read meaning into it.</p>
+        <p>A new essay with 12-word sentences gets ŷ ≈ {{pred12}}. Features in, a number out.</p>
+      </div>
+    </div>
+  </section>
 
-    <section class="step" data-scene="s02"><div class="card">
-      <div class="kicker">Act 1 · scene 2 · your turn</div>
-      <h3>Draw your best line</h3>
-      <div class="prompt"><strong>Predict first:</strong> before you touch anything —
-        where would you draw a line that turns sentence length into a score? Say your
-        answer out loud, then try it.</div>
-      <p>Grab the two handles and move them. The chip keeps score: the total
-         <em>squared distance</em> between your line and the forty essays. In class we
-         call this number the <em>loss</em>. Lower is better.</p>
-    </div></section>
+  <!-- ================= Chapter 4 ================= -->
+  <section class="chapter" id="ch4">
+    <div class="sticky">
+      <svg id="viz4" role="img" aria-label="The ratings collapse into two rows, readable and not readable; a line fitted to those zeros and ones leaves the 0 to 1 range"></svg>
+      <div class="caption" id="cap4"></div><div class="controls" id="ctl4"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="pivot">
+        <span class="tag">4 · A different question</span>
+        <h3>A yes/no question</h3>
+        <p>Now the writing program wants a decision, not a rating: is this essay readable for a first-year? We say <b>yes</b> when the
+           teacher's rating is at least {{pass}}: {{nRead}} essays are readable, {{nNot}} are not.</p>
+        <p>Watch the dots collapse into two rows. Each keeps its sentence length.</p>
+      </div>
+      <div class="step" data-scene="fails">
+        <span class="tag">4 · A different question</span>
+        <h3>The number machine fails</h3>
+        <p>We already own a machine that outputs numbers. Why not fit the line to the 1s and 0s?</p>
+        <div class="predict" data-pick="">
+          <p class="q">Predict: what will this line answer for a very short sentence, 6 words?</p>
+          <button type="button" data-a="one">Exactly 1</button><button type="button" data-a="between">Between 0 and 1</button><button type="button" data-a="over">More than 1</button>
+          <div class="reveal" hidden><b>More than 1: {{ll6}}.</b> At 28 words it says {{ll28}}, a negative probability. The line answers a question
+            nobody asked, in units that do not exist.</div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    <section class="step" data-scene="s03"><div class="card">
-      <div class="kicker">Act 1 · scene 3</div>
-      <h3>How wrong is a line?</h3>
-      <p>A line is a machine: sentence length goes in, a score comes out. To measure
-         how wrong it is, drop a line from each essay&rsquo;s true score to the line —
-         that gap is the <em>residual</em>.</p>
-      <p>Now the strange-but-brilliant part: turn each gap into an <em>actual square</em>.
-         Why? Gaps above and below the line cancel each other out — squares don&rsquo;t.
-         And big misses get punished much more than small ones.</p>
-    </div></section>
+  <!-- ================= Chapter 5 ================= -->
+  <section class="chapter" id="ch5">
+    <div class="sticky">
+      <svg id="viz5" role="img" aria-label="The line's score squashed into a probability by the S-curve, then the decision boundary, the log-loss penalty and the odds"></svg>
+      <div class="caption" id="cap5"></div><div class="controls" id="ctl5"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="squish">
+        <span class="tag">5 · Squish, then decide</span>
+        <h3>Squish the line <span class="opt">the sigmoid</span></h3>
+        <p>For yes/no the line is learned again: its score <b>z</b> is evidence. Big positive z says readable, big negative says not.
+           Before anyone sees it, push z through the S-curve σ: any number lands between 0 and 1, a probability.</p>
+        <span class="formula">\(z=\beta_0+\beta_1x,\qquad \sigma(z)=\dfrac{1}{1+e^{-z}}\)</span>
+        <p class="note">Here z = {{lb0}} − {{lb1}}·x. Linear regression, wrapped in a bend.</p>
+      </div>
+      <div class="step" data-scene="decide">
+        <span class="tag">5 · Squish, then decide</span>
+        <h3>From probability to decision</h3>
+        <p>Pick a threshold, 0.5 to start: above it, say yes. Where the curve crosses it is the <b>decision boundary</b>, near
+           {{bound}}-word sentences. The model gets <b>{{nCorrect}} of {{n}}</b> right; the {{nMiss}} circled essays are its mistakes.</p>
+      </div>
+      <div class="step" data-scene="logloss">
+        <span class="tag">5 · Squish, then decide</span>
+        <h3>How it learns: log-loss <span class="opt">optional</span></h3>
+        <p>Squared error suits numbers. For probabilities the penalty is minus the log of the probability given to the <i>right</i> answer:
+           small if the model was right and sure, huge if it was sure and wrong.</p>
+        <span class="formula">\(\text{penalty}=-\ln p_{\text{right}}\)</span>
+        <p class="note">Averaged over the {{n}} essays: log-loss {{logloss}}.</p>
+      </div>
+      <div class="step" data-scene="odds">
+        <span class="tag">5 · Squish, then decide</span>
+        <h3>What the slope means: odds <span class="opt">optional</span></h3>
+        <p><b>Odds</b> are probability over its complement: 75% is 3 to 1. Each extra word multiplies the odds of “readable” by
+           <span class="formula" style="display:inline;padding:.1rem .4rem">\(e^{\beta_1}=e^{ {{t:lb1neg}} }\approx {{t:odds}}\)</span>
+           a cut of about {{oddsCut}}, wherever you start.</p>
+      </div>
+    </div>
+  </section>
 
-    <section class="step" data-scene="s04"><div class="card">
-      <div class="kicker">Act 1 · scene 4</div>
-      <h3>Every line has a number</h3>
-      <p>Add up all the squares and you get one number: the <em>total squared
-         error</em>. Every possible line has one — terrible lines have huge numbers,
-         better lines smaller ones.</p>
-      <p>Linear regression has a single obsession: <em>find the line with the smallest
-         number</em>. Keep your own score in mind — the model will try to beat it.</p>
-    </div></section>
+  <!-- ================= Chapter 6 ================= -->
+  <section class="chapter" id="ch6">
+    <div class="sticky">
+      <svg id="viz6" role="img" aria-label="Made-up emails: how often the word free appears against spam probability, with a threshold you can slide; then the two lenses side by side"></svg>
+      <div class="caption" id="cap6"></div>
+      <div class="controls" id="ctl6">
+        <span class="end">flag more</span>
+        <input id="thr" type="range" min="0.1" max="0.9" step="0.05" value="0.5" aria-label="Spam threshold: left flags more email, right flags less">
+        <span class="end">flag less</span>
+        <span class="out" id="thrOut" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="spam">
+        <span class="tag">6 · Spam and recap</span>
+        <h3>Same machine, new problem: spam</h3>
+        <p>This is your spam filter, in miniature: {{snN}} made-up emails and one feature, how often the word <i>free</i> appears.
+           The curve says {{snMin}} times is more likely spam than not. Slide the threshold.</p>
+        <div class="predict" data-pick="">
+          <p class="q">Predict: if you raise the threshold, do false alarms go up or down?</p>
+          <button type="button" data-a="up">Up</button><button type="button" data-a="down">Down</button>
+          <div class="reveal" hidden><b>Down</b>: {{spamFa 0.5}} real emails flagged at 0.5, {{spamFa 0.8}} at 0.8. The price: more spam slips through.
+            Every deployed classifier is this slider.</div>
+        </div>
+      </div>
+      <div class="step" data-scene="lenses">
+        <span class="tag">6 · Spam and recap</span>
+        <h3>Same machine, two lenses</h3>
+        <p>Linear regression answers a <i>number</i>; logistic regression wraps the same weighted sum in σ and answers a <i>probability</i>.
+           Real models add more measurements:
+           <span class="formula">\(\hat y=\beta_0+\beta_1x_1+\beta_2x_2+\cdots\)</span>
+           Swap σ for softmax for many classes; stack such machines and you are walking toward neural networks.</p>
+      </div>
+    </div>
+  </section>
 
-    <section class="step" data-scene="s05"><div class="card">
-      <div class="kicker">Act 1 · scene 5</div>
-      <h3>The hot&ndash;cold game <span style="font-weight:400;font-size:.8em">(gradient descent)</span></h3>
-      <p>A model can&rsquo;t eyeball forty dots the way you just did. It plays the
-         children&rsquo;s hot&ndash;cold game: stand on a line, <em>feel which way is
-         downhill</em> — the slope of the loss — take a small step, repeat.</p>
-      <p>In the right-hand map, height is error. The model is the ball: blind to the
-         essays, rolling into the valley. This loop is <em>gradient descent</em> — and it
-         is how almost everything in this course learns.</p>
-    </div></section>
-
-    <section class="step" data-scene="s06"><div class="card">
-      <div class="kicker">Act 1 · scene 6</div>
-      <h3>How big is a step? <span style="font-weight:400;font-size:.8em">(learning rate)</span></h3>
-      <p>One knob rules the whole game: the <em>learning rate</em> — the size of each
-         step. Too small, and training crawls; you&rsquo;ll retire before it arrives.</p>
-      <p>Too large, and the model overshoots the valley and the loss
-         <em>explodes</em>. Just right, and it settles calmly at the bottom. Every real
-         training run you will ever debug is this exact story.</p>
-    </div></section>
-
-    <section class="step" data-scene="s07"><div class="card">
-      <div class="kicker">Act 1 · scene 7</div>
-      <h3>The machine, assembled</h3>
-      <p>The finished model is embarrassingly small:
-         <em>&#375; = 93.3 &minus; 2.19&thinsp;&middot;&thinsp;x</em>. Two numbers —
-         intercept and slope — are everything it learned.</p>
-      <p>Feed it a new essay with 12-word sentences and it answers a number. Not a
-         guess — a prediction. Linear regression: <em>features in, a number out</em>.</p>
-    </div></section>
-
-    <section class="step" data-scene="s08"><div class="card">
-      <div class="kicker">Act 2 · the pivot</div>
-      <h3>A different question</h3>
-      <p>Now the writing program changes its mind. It doesn&rsquo;t want a score from
-         0 to 100 — it wants a decision: <em>is this essay readable for a first-year?
-         Yes or no?</em></p>
-      <p>Watch the same forty essays collapse into two rows. Every essay keeps its
-         sentence-length position. Everything else melts away.</p>
-    </div></section>
-
-    <section class="step" data-scene="s09"><div class="card">
-      <div class="kicker">Act 2 · scene 9</div>
-      <h3>The number machine fails</h3>
-      <p>We already own a machine that outputs numbers — why not point it at the 1s
-         and 0s?</p>
-      <p>Fitted to the labels, the line dutifully answers <em>1.07</em> for short
-         sentences — &ldquo;7% more than fully readable&rdquo;? — and <em>&minus;0.23</em>
-         for long ones. Negative readability. The old machine is answering a question
-         nobody asked, in units that don&rsquo;t exist.</p>
-    </div></section>
-
-    <section class="step" data-scene="s10"><div class="card">
-      <div class="kicker">Act 2 · scene 10</div>
-      <h3>Squish the line <span style="font-weight:400;font-size:.8em">(the sigmoid)</span></h3>
-      <p>The fix is famous. Keep the line — its score
-         <em>z = &beta;<sub>0</sub> + &beta;<sub>1</sub>x</em> still measures evidence —
-         but before showing it to anyone, push it through a squishing function:</p>
-      <p style="text-align:center;font-size:1.12em">
-        <em>&sigma;(z) = 1 / (1 + e<sup>&minus;z</sup>)</em></p>
-      <p>The S-curve takes any number, however wild, and squashes it into
-         <em>0&hellip;1</em> — where it can finally be read as a <em>probability</em>.
-         That is the whole trick: linear regression, wrapped in a non-linear function.</p>
-    </div></section>
-
-    <section class="step" data-scene="s11"><div class="card">
-      <div class="kicker">Act 2 · scene 11</div>
-      <h3>From probability to decision</h3>
-      <p>Every essay now gets a <em>probability</em> of being readable. To decide, pick
-         a threshold — 0.5 by default. Where the curve crosses it, the model flips from
-         &ldquo;not readable&rdquo; to &ldquo;readable&rdquo;: that x is the
-         <em>decision boundary</em>, at &asymp; 15-word sentences.</p>
-      <p>The essays it gets wrong are circled — 33 of 40 correct here. Behind the
-         scenes, the curve was trained by <em>log-loss</em>, the logistic cousin of
-         squared error: being confident and wrong hurts a lot.</p>
-    </div></section>
-
-    <section class="step" data-scene="s12"><div class="card">
-      <div class="kicker">Act 2 · scene 12 · your turn</div>
-      <h3>Same machine, new problem: spam</h3>
-      <p>This is not a readability trick — it&rsquo;s your spam filter. In the notebook
-         you&rsquo;ll train this exact machine on emails, with one feature: how many
-         times the word <em>free</em> appears. The fitted curve already says
-         &ldquo;free&rdquo; three times is more-likely-than-not spam.</p>
-      <div class="prompt"><strong>Modify:</strong> slide the threshold. Cautious (0.8)
-        — few real emails get flagged, but spam slips through. Aggressive (0.5) — more
-        spam caught, at a price. What would <em>your</em> inbox prefer?</div>
-      <p>Every deployed classifier is this slider.</p>
-    </div></section>
-
-    <section class="step" data-scene="s13"><div class="card">
-      <div class="kicker">Act 3 · coda</div>
-      <h3>Same machine, two lenses</h3>
-      <p>Linear regression predicts a <em>number</em>. Logistic regression predicts a
-         <em>probability</em>. And it is literally the same machine — a weighted sum of
-         features, wrapped in a non-linear function.</p>
-      <p>Sigmoid for two classes; swap in <em>softmax</em> and you have multiclass;
-         stack these machines and you&rsquo;re walking toward neural networks. Next
-         stop: the notebook — where logistic regression faces your Naive Bayes spam
-         filter head-to-head.</p>
-    </div></section>
-
-  </div>
 </main>
 
 <footer>
-  <div class="card"><h4>Linear regression</h4>
-    Features in, a number out: &#375; = &beta;<sub>0</sub> + &beta;<sub>1</sub>x.
-    Trained by making the squared error small — by hand, you drew it; the model uses
-    gradient descent.</div>
-  <div class="card"><h4>Logistic regression</h4>
-    The same weighted sum, wrapped in &sigma; (or softmax for many classes): a
-    probability, a threshold, a decision. Fast to train — and the last layer of many a
-    neural network.</div>
-  <div class="card"><h4>Keep going</h4>
-    The <a href="https://github.com/liadmagen/Modeling_course/blob/main/exercises/NN_logistic_regression_spam_classification.ipynb">spam
-    notebook</a>: train this machine on real emails, then face it off against your
-    Naive Bayes classifier — precision, recall, F1.</div>
-  <div class="card"><h4>Read &amp; watch</h4>
-    Jurafsky &amp; Martin, <a href="https://web.stanford.edu/~jurafsky/slp3/5.pdf">Speech and
-    Language Processing, ch. 5</a>; and the page that inspired this format:
-    <a href="https://r2d3.us/visual-intro-to-machine-learning-part-1/">R2D3&rsquo;s visual
-    introduction to machine learning</a>.</div>
-  <div class="credit">Built for MLT &mdash; Modeling, FH Campus Wien. Every number on
-    this page is a real fit: regenerate them with <code>generate_data.py</code>
-    (seeded &amp; reproducible). Structure inspired by r2d3.us; scroll-driven figure
-    built with D3.js.</div>
+  <p><b>From a Number to a Yes: a visual introduction to linear and logistic regression.</b>
+     Part of the <i>Introduction to ML for Language Technologies</i> course materials. Inspired by
+     <a href="https://www.r2d3.us/visual-intro-to-machine-learning-part-1/">R2D3: A Visual Introduction to Machine Learning</a>.</p>
+  <p>Further reading: Jurafsky &amp; Martin,
+     <a href="https://web.stanford.edu/~jurafsky/slp3/5.pdf">Speech and Language Processing, chapter 5 (logistic regression)</a>.</p>
+  <p>The {{n}} essays and {{snN}} emails are synthetic (invented with a seeded random generator, see <code>generate_data.py</code>).
+     Every fit and number on this page is computed in your browser by <code>lr-math.js</code> (unit-tested by <code>lr-math.test.js</code>).
+     The page works offline; open the file directly.</p>
 </footer>
 
-<noscript><p style="text-align:center;padding:2rem">This page needs JavaScript for its
-animations — the full text of every step is still readable above.</p></noscript>
-
-<script src="d3.min.js"></script>
-<script src="data.js"></script>
-<script>
-(() => {
-"use strict";
-
-/* ---------------- data shortcuts ---------------- */
-const E = DATA.essays, OLS = DATA.ols, GD = DATA.gd, GRID = DATA.grid,
-      READ = DATA.readability, LL = DATA.linOnLabels, SP = DATA.spam;
-const N = E.n;
-const lab = READ.labels;
-const sig = z => 1 / (1 + Math.exp(-z));
-const C = {ink:"#4a5060", blue:"#0072B2", verm:"#D55E00", orange:"#E69F00",
-           green:"#009E73", red:"#b91c1c", gray:"#9aa0a6", muted:"#6d7280"};
-
-/* ---------------- geometry ---------------- */
-const svg = d3.select("#chart");
-const W = 680, H = 560, M = {t: 34, r: 30, b: 58, l: 64};
-const IW = W - M.l - M.r, IH = H - M.t - M.b;
-
-const xE  = d3.scaleLinear().domain([5, 29]).range([M.l, W - M.r]);
-const ySc = d3.scaleLinear().domain([0, 105]).range([M.t + IH, M.t]);
-const yPr = d3.scaleLinear().domain([-0.45, 1.45]).range([M.t + IH, M.t]);
-const xSp = d3.scaleLinear().domain([-0.6, 9.6]).range([M.l, W - M.r]);
-
-/* scene 05 split: left = current line, right = loss landscape */
-const L5 = [M.l, M.l + IW * 0.50];
-const C5 = [M.l + IW * 0.62, W - M.r];
-const xE5 = d3.scaleLinear().domain([5, 29]).range(L5);
-const cB0 = d3.scaleLinear().domain([GRID.b0[0], GRID.b0[GRID.b0.length - 1]]).range(C5);
-const cB1 = d3.scaleLinear().domain([GRID.b1[0], GRID.b1[GRID.b1.length - 1]])
-              .range([M.t + IH - 6, M.t + 40]);
-
-/* scene 06 loss-vs-step */
-const xSt = d3.scaleLinear().domain([0, 60]).range([M.l + 18, W - M.r - 18]);
-const yLs = d3.scaleLinear().domain([0, 3400]).range([M.t + IH, M.t + 10]);
-
-const clamp01 = v => Math.max(0, Math.min(1, v));
-const lerp = (a, b, t) => a + (b - a) * t;
-const ez = t => d3.easeCubicInOut(clamp01(t));
-const fmtI = d3.format(",.0f");
-const mseOf = (b0, b1) =>
-  d3.mean(E.x, (xv, i) => (E.y[i] - (b0 + b1 * xv)) ** 2);
-
-/* ---------------- clip paths ---------------- */
-const defs = svg.append("defs");
-const clip = (id, x, y, w, h) => defs.append("clipPath").attr("id", id)
-  .append("rect").attr("x", x).attr("y", y).attr("width", w).attr("height", h);
-clip("clipFull",  M.l,     M.t, IW, IH);
-clip("clipLeft",  L5[0],   M.t, L5[1] - L5[0], IH);
-clip("clipCont",  C5[0],   M.t, C5[1] - C5[0], IH);
-
-/* ---------------- layer groups ---------------- */
-const KEYS = ["axesA1","axesA2","axesSp","zone","strips","heat","ballmap",
-  "losscurves","ghost","resid","squares","modeline","userline","dots","spam",
-  "marks","extras","coda","handles"];
-const G = {};
-KEYS.forEach(k => G[k] = svg.append("g"));
-const only = keys => KEYS.forEach(k =>
-  G[k].style("opacity", keys.includes(k) ? 1 : 0));
-
-/* ---------------- axis builders ---------------- */
-function haxis(g, xs, ticks, y, label, labelY) {
-  const r = xs.range();
-  g.append("line").attr("x1", r[0]).attr("x2", r[1]).attr("y1", y).attr("y2", y);
-  const t = g.selectAll(null).data(ticks).join("g");
-  t.append("line").attr("x1", d => xs(d)).attr("x2", d => xs(d))
-    .attr("y1", y - 4).attr("y2", y + 4);
-  t.append("text").attr("x", d => xs(d)).attr("y", y + 19).attr("text-anchor", "middle")
-    .text(d => d);
-  if (label) g.append("text").attr("class", "axtitle")
-    .attr("x", (r[0] + r[1]) / 2).attr("y", labelY).attr("text-anchor", "middle")
-    .text(label);
-}
-function vaxis(g, ys, ticks, x, label) {
-  const r = ys.range();
-  g.append("line").attr("y1", r[0]).attr("y2", r[1]).attr("x1", x).attr("x2", x);
-  const t = g.selectAll(null).data(ticks).join("g");
-  t.append("line").attr("y1", d => ys(d)).attr("y2", d => ys(d))
-    .attr("x1", x - 4).attr("x2", x + 4);
-  t.append("text").attr("x", x - 9).attr("y", d => ys(d) + 4).attr("text-anchor", "end")
-    .text(d => d);
-  if (label) g.append("text").attr("class", "axtitle")
-    .attr("transform", `rotate(-90 14 ${(r[0] + r[1]) / 2})`)
-    .attr("x", 14).attr("y", (r[0] + r[1]) / 2).attr("text-anchor", "middle").text(label);
-}
-
-/* Act 1 axes */
-(function () {
-  const g = G.axesA1.attr("class", "axis");
-  haxis(g, xE, [6, 10, 14, 18, 22, 26], ySc(0), "average sentence length (words)", H - 14);
-  vaxis(g, ySc, [0, 20, 40, 60, 80, 100], xE(5), "readability score (0\u2013100)");
-})();
-
-/* Act 2 axes (probability) */
-(function () {
-  const g = G.axesA2.attr("class", "axis");
-  haxis(g, xE, [6, 10, 14, 18, 22, 26], yPr(-0.45), "average sentence length (words)", H - 14);
-  vaxis(g, yPr, ["0", "0.5", "1"], xE(5), "P(readable)");
-})();
-
-/* Spam axes */
-(function () {
-  const g = G.axesSp.attr("class", "axis");
-  haxis(g, xSp, [0,1,2,3,4,5,6,7,8,9], yPr(-0.45), "times \u201cfree\u201d appears in the email", H - 14);
-  vaxis(g, yPr, ["0", "0.5", "1"], xSp(-0.6), "P(spam)");
-})();
-
-/* probability zone band (act 2) */
-(function () {
-  const g = G.zone;
-  g.append("rect").attr("x", M.l).attr("width", IW)
-    .attr("y", yPr(1)).attr("height", yPr(0) - yPr(1))
-    .attr("fill", "#f1efe8").attr("stroke", "none");
-  [[1, "1"], [0, "0"]].forEach(([v, t]) => {
-    g.append("line").attr("x1", M.l).attr("x2", W - M.r)
-      .attr("y1", yPr(v)).attr("y2", yPr(v))
-      .attr("stroke", "#c9c4b8").attr("stroke-dasharray", "2 4");
-    g.append("text").attr("x", W - M.r + 6).attr("y", yPr(v) + 4).text(t)
-      .attr("font-size", 11).attr("fill", C.muted);
-  });
-  g.append("text").attr("class", "axtitle").attr("x", W - M.r - 8)
-    .attr("y", yPr(1) - 8).attr("text-anchor", "end")
-    .text("the probability zone: 0 \u2026 1");
-})();
-
-/* class strips (act 2) */
-(function () {
-  const g = G.strips;
-  g.append("rect").attr("x", M.l).attr("width", IW)
-    .attr("y", yPr(1)).attr("height", yPr(0.72) - yPr(1))
-    .attr("fill", C.blue).attr("fill-opacity", 0.06);
-  g.append("rect").attr("x", M.l).attr("width", IW)
-    .attr("y", yPr(0.28)).attr("height", yPr(0) - yPr(0.28))
-    .attr("fill", C.orange).attr("fill-opacity", 0.08);
-  g.append("text").attr("x", W - M.r - 8).attr("y", yPr(0.93))
-    .attr("text-anchor", "end").attr("font-size", 12).attr("fill", C.blue)
-    .text("readable");
-  g.append("text").attr("x", W - M.r - 8).attr("y", yPr(0.07))
-    .attr("text-anchor", "end").attr("font-size", 12).attr("fill", "#b47400")
-    .text("not readable");
-})();
-
-/* ---------------- dots (essays) ---------------- */
-const dots = G.dots.selectAll("circle").data(E.x).join("circle")
-  .attr("r", 5.4).attr("fill", C.ink).attr("stroke", "#fff").attr("stroke-width", 1);
-const posScore = i => [xE(E.x[i]), ySc(E.y[i])];
-const posStrip = i => [xE(E.x[i]), yPr(lab[i] ? 0.86 : 0.14)];
-const fillRead = i => lab[i] ? C.blue : C.orange;
-
-/* ---------------- spam dots ---------------- */
-const SPJ = (() => {
-  const groups = {};
-  SP.counts.forEach((c, i) => {
-    const k = c + "-" + SP.labels[i];
-    (groups[k] = groups[k] || []).push(i);
-  });
-  const y = new Array(SP.counts.length).fill(0);
-  Object.values(groups).forEach(gn =>
-    gn.forEach((i, j) => { y[i] = (j - (gn.length - 1) / 2) * 9; }));
-  return {y};
-})();
-const spam = G.spam.selectAll("circle").data(SP.counts).join("circle")
-  .attr("r", 5.4).attr("stroke", "#fff").attr("stroke-width", 1)
-  .attr("fill", (d, i) => SP.labels[i] ? C.verm : C.blue);
-const posSpam = i => [xSp(SP.counts[i]), yPr(SP.labels[i] ? 0.86 : 0.14) + SPJ.y[i]];
-
-/* ---------------- model / user lines ---------------- */
-const lineD = (b0, b1, xs, ys, x0 = 5, x1 = 29) =>
-  `M${xs(x0)},${ys(b0 + b1 * x0)}L${xs(x1)},${ys(b0 + b1 * x1)}`;
-const curveD = (f, xs, ys, x0, x1, step = 0.25) => {
-  let d = "";
-  for (let x = x0; x <= x1 + 1e-9; x += step)
-    d += (d ? "L" : "M") + xs(x).toFixed(2) + "," + ys(f(x)).toFixed(2);
-  return d;
-};
-const modeline = G.modeline.append("path")
-  .attr("fill", "none").attr("stroke", C.blue).attr("stroke-width", 3);
-const userline = G.userline.append("path")
-  .attr("fill", "none").attr("stroke", C.verm).attr("stroke-width", 2.6);
-G.userline.attr("clip-path", "url(#clipFull)");
-
-/* ---------------- drag handles (s02) ---------------- */
-const S = {userLine: null, hy: [ySc(128 - 3.6 * 8), ySc(128 - 3.6 * 26)], slider: 0.5};
-const handle = G.handles.selectAll("circle").data([0, 1]).join("circle")
-  .attr("class", "handle").attr("r", 10)
-  .attr("cx", i => xE(i ? 26 : 8))
-  .attr("cy", i => S.hy[i]);
-function lineFromHandles() {
-  const y1 = ySc.invert(S.hy[0]), y2 = ySc.invert(S.hy[1]);
-  const b1 = (y2 - y1) / 18;
-  return {b0: y1 - b1 * 8, b1};
-}
-handle.call(d3.drag()
-  .on("drag", (ev, i) => {
-    S.hy[i] = Math.max(M.t + 10, Math.min(M.t + IH - 10, ev.y));
-    S.userLine = lineFromHandles();
-    renderActive();
-  }));
-
-/* ---------------- residuals + squares (s03) ---------------- */
-const resids = G.resid.selectAll("line").data(E.x).join("line")
-  .attr("stroke", C.verm).attr("stroke-width", 1.4).attr("stroke-opacity", 0.85);
-const squares = G.squares.selectAll("rect").data(E.x).join("rect")
-  .attr("fill", C.verm).attr("fill-opacity", 0.13)
-  .attr("stroke", C.verm).attr("stroke-opacity", 0.45).attr("stroke-width", 1);
-G.squares.attr("clip-path", "url(#clipFull)");
-
-/* ---------------- candidate ghost lines (s04) ---------------- */
-const CANDS = [[100,-1.2],[150,-3.9],[60,-1.8],[118,-2.9],[135,-4.4],
-               [OLS.b0 - 6, OLS.b1 + 0.6]]
-  .map(([b0, b1]) => ({b0, b1, mse: mseOf(b0, b1)}));
-const ghost = G.ghost.selectAll("path").data(CANDS).join("path")
-  .attr("fill", "none").attr("stroke", C.gray).attr("stroke-width", 2);
-const ghostBest = G.ghost.append("path")
-  .attr("fill", "none").attr("stroke", C.green).attr("stroke-width", 2.4)
-  .attr("stroke-dasharray", "6 5").attr("opacity", 0);
-
-/* ---------------- loss landscape (s05) ---------------- */
-(function () {
-  const g = G.heat;
-  const lossColor = d3.scaleSequential()
-    .domain([OLS.mse * 0.98, OLS.mse * 7])
-    .interpolator(d3.interpolateYlOrRd).clamp(true);
-  const gw = (C5[1] - C5[0]) / (GRID.b0.length - 1);
-  const gh = (cB1(GRID.b1[0]) - cB1(GRID.b1[GRID.b1.length - 1])) / (GRID.b1.length - 1);
-  const rects = [];
-  GRID.b1.forEach((b1, j) => GRID.b0.forEach((b0, i) =>
-    rects.push([b0, b1, GRID.loss[j][i]])));
-  g.selectAll("rect").data(rects).join("rect")
-    .attr("x", d => cB0(d[0]) - gw / 2).attr("y", d => cB1(d[1]) - gh / 2)
-    .attr("width", gw + 0.6).attr("height", gh + 0.6)
-    .attr("fill", d => lossColor(d[2]));
-  g.append("rect").attr("x", C5[0])
-    .attr("y", cB1(GRID.b1[GRID.b1.length - 1]) - gh / 2)
-    .attr("width", C5[1] - C5[0])
-    .attr("height", cB1(GRID.b1[0]) - cB1(GRID.b1[GRID.b1.length - 1]) + gh)
-    .attr("fill", "none").attr("stroke", "#b8b2a4");
-  g.append("text").attr("class", "paneltitle").attr("x", (C5[0] + C5[1]) / 2)
-    .attr("y", M.t + 16).attr("text-anchor", "middle")
-    .text("the loss landscape \u2014 height = error");
-  g.append("text").attr("class", "axtitle").attr("x", (C5[0] + C5[1]) / 2)
-    .attr("y", M.t + IH + 18).attr("text-anchor", "middle").text("\u03b20 \u2192");
-  g.append("text").attr("class", "axtitle").attr("transform",
-    `rotate(-90 ${C5[0] - 16} ${(M.t + 40 + M.t + IH - 6) / 2})`)
-    .attr("x", C5[0] - 16).attr("y", (M.t + 40 + M.t + IH - 6) / 2)
-    .attr("text-anchor", "middle").text("\u03b21");
-  g.append("path").attr("d", "M-6,-6L6,6M-6,6L6,-6")
-    .attr("transform", `translate(${cB0(OLS.b0)},${cB1(OLS.b1)})`)
-    .attr("stroke", "#fff").attr("stroke-width", 2.6)
-    .attr("fill", "none");
-  /* minimal axes for the left panel */
-  const ga = g.append("g").attr("class", "axis");
-  ga.append("line").attr("x1", L5[0]).attr("x2", L5[1])
-    .attr("y1", ySc(0)).attr("y2", ySc(0));
-  [0, 50, 100].forEach(v => {
-    ga.append("line").attr("x1", L5[0]).attr("x2", L5[0] - 4)
-      .attr("y1", ySc(v)).attr("y2", ySc(v));
-    ga.append("text").attr("x", L5[0] - 8).attr("y", ySc(v) + 4)
-      .attr("text-anchor", "end").text(v);
-  });
-  ga.append("text").attr("class", "paneltitle").attr("x", (L5[0] + L5[1]) / 2)
-    .attr("y", M.t + 16).attr("text-anchor", "middle").text("the model\u2019s current line");
-  ga.append("text").attr("class", "axtitle").attr("x", (L5[0] + L5[1]) / 2)
-    .attr("y", M.t + IH + 18).attr("text-anchor", "middle").text("sentence length \u2192");
-})();
-const ballPath = G.ballmap.append("path").attr("fill", "none")
-  .attr("stroke", "#1f2430").attr("stroke-width", 2).attr("opacity", 0.9);
-const ball = G.ballmap.append("circle").attr("r", 6.5)
-  .attr("fill", "#1f2430").attr("stroke", "#fff").attr("stroke-width", 1.6);
-G.ballmap.attr("clip-path", "url(#clipCont)");
-
-/* ---------------- loss curves (s06) ---------------- */
-(function () {
-  const g = G.losscurves;
-  const ga = g.append("g").attr("class", "axis");
-  haxis(ga, xSt, [0, 20, 40, 60], yLs(0), "training step \u2192", H - 14);
-  vaxis(ga, yLs, [0, 1000, 2000, 3000], M.l + 18, "loss (squared error)");
-})();
-const REGIMES = [
-  {key: "trajSmall", color: C.gray, label: "\u03b1 = 0.002 \u2014 too small: crawls forever"},
-  {key: "trajLarge", color: C.verm, label: "\u03b1 = 1.1 \u2014 too large: overshoots, loss explodes"},
-  {key: "trajGood",  color: C.blue, label: "\u03b1 = 0.099 \u2014 just right: settles at the bottom"},
-];
-const lossCurvesG = G.losscurves.append("g").attr("clip-path", "url(#clipFull)");
-const lossFaint = lossCurvesG.selectAll("path.faint").data(REGIMES).join("path")
-  .attr("class", "faint").attr("fill", "none")
-  .attr("stroke", d => d.color).attr("stroke-width", 1).attr("opacity", 0.16)
-  .attr("d", d => d3.line()(GD[d.key].map((t, i) => [xSt(i), yLs(t[2])])));
-const lossActive = lossCurvesG.append("path").attr("fill", "none")
-  .attr("stroke", C.blue).attr("stroke-width", 2.6);
-const lossDot = lossCurvesG.append("circle").attr("r", 5)
-  .attr("fill", "#1f2430").attr("stroke", "#fff").attr("stroke-width", 1.4);
-
-/* ---------------- extras: guides, threshold, boundary ---------------- */
-const ex = G.extras;
-const eGuide = ex.append("line").attr("stroke", C.muted)
-  .attr("stroke-dasharray", "4 4");
-const eDot = ex.append("circle").attr("r", 7).attr("fill", "#fff")
-  .attr("stroke", C.blue).attr("stroke-width", 2.4);
-const eLbl = ex.append("text").attr("font-size", 13).attr("font-weight", 600)
-  .attr("fill", C.blue);
-const llL1 = ex.append("text").attr("font-size", 12.5).attr("font-weight", 600)
-  .attr("fill", C.red).attr("text-anchor", "middle");
-const llL2 = ex.append("text").attr("font-size", 12.5).attr("font-weight", 600)
-  .attr("fill", C.red).attr("text-anchor", "middle");
-const tLine = ex.append("line").attr("stroke", C.red)
-  .attr("stroke-dasharray", "5 4").attr("stroke-width", 1.6);
-const tLbl = ex.append("text").attr("font-size", 11.5).attr("fill", C.red);
-const bLine = ex.append("line").attr("stroke", C.verm)
-  .attr("stroke-dasharray", "5 4").attr("stroke-width", 1.6);
-const bLbl = ex.append("text").attr("font-size", 11.5).attr("fill", C.verm)
-  .attr("text-anchor", "middle");
-
-/* ---------------- misclassified marks (s11) ---------------- */
-const misIdx = d3.range(N).filter(i =>
-  ((sig(READ.b0 + READ.b1 * E.x[i]) >= 0.5) ? 1 : 0) !== lab[i]);
-const marks = G.marks.selectAll("g").data(misIdx).join("g")
-  .attr("opacity", 0);
-marks.append("circle").attr("r", 9.5).attr("fill", "none")
-  .attr("stroke", C.red).attr("stroke-width", 1.8);
-marks.append("path").attr("d", "M-4.5,-4.5L4.5,4.5M-4.5,4.5L4.5,-4.5")
-  .attr("stroke", C.red).attr("stroke-width", 1.8);
-
-/* ---------------- coda (s13) ---------------- */
-(function () {
-  const g = G.coda;
-  const yTop = M.t + 70, yBot = M.t + IH - 46;
-  const xCl = d3.scaleLinear().domain([5, 29]).range([M.l + 26, M.l + IW * 0.40]);
-  const xCr = d3.scaleLinear().domain([5, 29]).range([M.l + IW * 0.62, W - M.r - 26]);
-  const yCl = d3.scaleLinear().domain([0, 105]).range([yBot, yTop]);
-  const yCr = d3.scaleLinear().domain([-0.05, 1.05]).range([yBot, yTop]);
-  const L = g.append("g"), R = g.append("g");
-  g.append("line").attr("x1", W / 2).attr("x2", W / 2).attr("y1", yTop - 28)
-    .attr("y2", yBot + 34).attr("stroke", "#dcd8cf");
-
-  L.append("text").attr("class", "paneltitle").attr("x", (xCl.range()[0] + xCl.range()[1]) / 2)
-    .attr("y", yTop - 36).attr("text-anchor", "middle").text("the number machine");
-  L.append("line").attr("x1", xCl.range()[0]).attr("x2", xCl.range()[1])
-    .attr("y1", yBot).attr("y2", yBot).attr("stroke", "#c9c4b8");
-  L.append("path").attr("fill", "none").attr("stroke", C.blue).attr("stroke-width", 2.6)
-    .attr("d", lineD(OLS.b0, OLS.b1, xCl, yCl));
-  L.append("circle").attr("cx", xCl(12)).attr("cy", yCl(OLS.b0 + OLS.b1 * 12))
-    .attr("r", 6).attr("fill", "#fff").attr("stroke", C.blue).attr("stroke-width", 2.2);
-  L.append("text").attr("x", xCl(12) + 10).attr("y", yCl(OLS.b0 + OLS.b1 * 12) + 4)
-    .attr("font-size", 12.5).attr("fill", C.blue).text("\u0177 \u2248 67");
-  L.append("text").attr("x", (xCl.range()[0] + xCl.range()[1]) / 2).attr("y", yBot + 20)
-    .attr("text-anchor", "middle").attr("font-size", 12).attr("fill", C.muted)
-    .text("linear: \u0177 = \u03b20 + \u03b21\u00b7x");
-
-  R.append("text").attr("class", "paneltitle").attr("x", (xCr.range()[0] + xCr.range()[1]) / 2)
-    .attr("y", yTop - 36).attr("text-anchor", "middle").text("the probability machine");
-  R.append("line").attr("x1", xCr.range()[0]).attr("x2", xCr.range()[1])
-    .attr("y1", yBot).attr("y2", yBot).attr("stroke", "#c9c4b8");
-  R.append("path").attr("fill", "none").attr("stroke", C.verm).attr("stroke-width", 2.6)
-    .attr("d", curveD(x => sig(READ.b0 + READ.b1 * x), xCr, yCr, 5, 29));
-  R.append("circle").attr("cx", xCr(8))
-    .attr("cy", yCr(sig(READ.b0 + READ.b1 * 8)))
-    .attr("r", 6).attr("fill", "#fff").attr("stroke", C.verm).attr("stroke-width", 2.2);
-  R.append("text").attr("x", xCr(8) + 10).attr("y", yCr(sig(READ.b0 + READ.b1 * 8)) + 4)
-    .attr("font-size", 12.5).attr("fill", C.verm).text("P \u2248 0.96");
-  R.append("text").attr("x", (xCr.range()[0] + xCr.range()[1]) / 2).attr("y", yBot + 20)
-    .attr("text-anchor", "middle").attr("font-size", 12).attr("fill", C.muted)
-    .text("logistic: P = \u03c3(\u03b20 + \u03b21\u00b7x)");
-  g.selectAll("g").attr("opacity", 0);
-})();
-
-/* ---------------- chips ---------------- */
-const chipEl = document.getElementById("chip");
-const hudEl = document.getElementById("hud");
-let chipCache = "", hudCache = "";
-const setChip = html => { if (chipCache !== html) { chipEl.innerHTML = html; chipCache = html; } };
-const setHud = (act, n, title) => {
-  const s = `Act ${act} \u00b7 ${n}/13 \u2014 ${title}`;
-  if (hudCache !== s) { hudEl.textContent = s; hudCache = s; }
-};
-
-/* ---------------- scenes ---------------- */
-const scenes = {};
-
-scenes.s01 = p => {
-  only(["axesA1", "dots"]);
-  setHud(1, 1, "forty essays, one hunch");
-  G.axesA1.style("opacity", clamp01(p * 5));
-  dots.attr("cx", (d, i) => posScore(i)[0])
-      .attr("cy", (d, i) => posScore(i)[1] - (1 - ez(clamp01(p * 1.35 - i * 0.012))) * 26)
-      .attr("fill-opacity", (d, i) => ez(clamp01(p * 1.35 - i * 0.012)))
-      .attr("fill", C.ink);
-  setChip(p < 0.15
-    ? "<span class='lbl'>each dot is one essay</span>"
-    : "<span class='lbl'>40 essays &middot; sentence length vs. readability &mdash; can one number predict the other?</span>");
-};
-
-scenes.s02 = p => {
-  only(["axesA1", "dots", "userline", "handles"]);
-  setHud(1, 2, "draw your best line");
-  dots.attr("cx", (d, i) => posScore(i)[0]).attr("cy", (d, i) => posScore(i)[1])
-      .attr("fill-opacity", 1).attr("fill", C.ink);
-  const L = S.userLine || {b0: DATA.defaultLine[0], b1: DATA.defaultLine[1]};
-  userline.attr("d", lineD(L.b0, L.b1, xE, ySc))
-    .attr("stroke-dasharray", S.userLine ? null : "6 5")
-    .attr("stroke-opacity", S.userLine ? 1 : 0.65);
-  handle.attr("cy", i => S.hy[i]);
-  if (!S.userLine)
-    setChip("drag the two handles to draw your own line");
-  else
-    setChip(`your line &mdash; total squared error: <b>${fmtI(mseOf(S.userLine.b0, S.userLine.b1))}</b> <span class="lbl">(lower = better)</span>`);
-};
-
-scenes.s03 = p => {
-  only(["axesA1", "dots", "userline", "resid", "squares"]);
-  setHud(1, 3, "residuals \u2192 squares");
-  const L = S.userLine || {b0: DATA.defaultLine[0], b1: DATA.defaultLine[1]};
-  dots.attr("cx", (d, i) => posScore(i)[0]).attr("cy", (d, i) => posScore(i)[1])
-      .attr("fill-opacity", 1).attr("fill", C.ink);
-  userline.attr("d", lineD(L.b0, L.b1, xE, ySc)).attr("stroke-dasharray", null)
-    .attr("stroke-opacity", 1);
-  resids.attr("x1", (d, i) => xE(E.x[i])).attr("x2", (d, i) => xE(E.x[i]))
-    .attr("y1", (d, i) => ySc(E.y[i]))
-    .attr("y2", (d, i) => lerp(ySc(E.y[i]), ySc(L.b0 + L.b1 * E.x[i]),
-        ez(clamp01(p * 1.75 - i * 0.02))))
-    .attr("opacity", (d, i) => clamp01(p * 1.75 - i * 0.02) > 0 ? 0.85 : 0);
-  squares.attr("x", (d, i) => xE(E.x[i]))
-    .attr("y", (d, i) => {
-      const yd = ySc(E.y[i]), yl = ySc(L.b0 + L.b1 * E.x[i]);
-      const side = Math.abs(yd - yl) * ez(clamp01(p * 1.75 - 0.45 - i * 0.02));
-      return yd < yl ? yd : yd - side;
-    })
-    .attr("width", (d, i) => Math.abs(ySc(E.y[i]) - ySc(L.b0 + L.b1 * E.x[i])) *
-        ez(clamp01(p * 1.75 - 0.45 - i * 0.02)))
-    .attr("height", (d, i) => Math.abs(ySc(E.y[i]) - ySc(L.b0 + L.b1 * E.x[i])) *
-        ez(clamp01(p * 1.75 - 0.45 - i * 0.02)));
-  const total = d3.sum(E.x, (xv, i) => (E.y[i] - (L.b0 + L.b1 * xv)) ** 2);
-  setChip(p < 0.35
-    ? "<span class='lbl'>each gap = the residual: what the line says vs. what really happened</span>"
-    : p < 0.75
-      ? "<span class='lbl'>square each gap &mdash; squares can\u2019t cancel each other out</span>"
-      : `total squared error of this line \u2248 <b>${fmtI(total)}</b>`);
-};
-
-scenes.s04 = p => {
-  only(["axesA1", "dots", "ghost"]);
-  setHud(1, 4, "every line has a number");
-  dots.attr("cx", (d, i) => posScore(i)[0]).attr("cy", (d, i) => posScore(i)[1])
-      .attr("fill-opacity", 1).attr("fill", C.ink);
-  ghost.attr("d", d => lineD(d.b0, d.b1, xE, ySc));
-  const u = clamp01(p / 0.92) * (CANDS.length - 1);
-  ghost.attr("opacity", (d, k) => clamp01(1 - Math.abs(u - k)) * 0.95 + 0.07);
-  const k0 = Math.min(CANDS.length - 1, Math.floor(u));
-  const k1 = Math.min(CANDS.length - 1, k0 + 1);
-  const m = lerp(CANDS[k0].mse, CANDS[k1].mse, u - k0);
-  const bestO = clamp01((p - 0.9) / 0.1);
-  ghostBest.attr("d", lineD(OLS.b0, OLS.b1, xE, ySc)).attr("opacity", bestO * 0.8);
-  setChip(p < 0.92
-    ? `this line\u2019s total squared error: <b>${fmtI(m)}</b> <span class="lbl">&mdash; every line has one</span>`
-    : "<span class='lbl'>one of these lines is the best. the model must find it &mdash; blind.</span>");
-};
-
-scenes.s05 = p => {
-  only(["axesA1", "modeline", "heat", "ballmap"]);
-  setHud(1, 5, "gradient descent");
-  G.axesA1.style("opacity", clamp01(1 - p * 6));
-  G.heat.style("opacity", clamp01((p - 0.04) * 7));
-  const T = GD.trajGood;
-  const idx = Math.round(clamp01((p - 0.1) / 0.9) * (T.length - 1));
-  const [b0, b1, loss] = T[idx];
-  modeline.attr("d", lineD(b0, b1, xE5, ySc)).attr("stroke", C.blue);
-  G.modeline.attr("clip-path", "url(#clipLeft)");
-  const cl = v => Math.max(C5[0], Math.min(C5[1], v));
-  ballPath.attr("d", d3.line()(T.slice(0, idx + 1)
-    .map(t => [cl(cB0(t[0])), cl(cB1(t[1]))])));
-  ball.attr("cx", cl(cB0(b0))).attr("cy", cl(cB1(b1)));
-  setChip(idx >= T.length - 1
-    ? `loss: <b>${fmtI(loss)}</b> <span class="lbl">&mdash; arrived: the best line a blind search can find</span>`
-    : `loss: <b>${fmtI(loss)}</b> <span class="lbl">&mdash; feel the slope, step downhill, repeat</span>`);
-};
-
-scenes.s06 = p => {
-  only(["losscurves"]);
-  setHud(1, 6, "learning rate");
-  const seg = p < 1 / 3 ? 0 : p < 2 / 3 ? 1 : 2;
-  const t = clamp01((p - seg / 3) * 3);
-  const r = REGIMES[seg];
-  const T = GD[r.key];
-  const idx = Math.round(t * (T.length - 1));
-  lossActive.attr("stroke", r.color)
-    .attr("d", d3.line()(T.slice(0, idx + 1).map((s, i) => [xSt(i), yLs(s[2])])));
-  lossDot.attr("cx", xSt(idx)).attr("cy", yLs(T[idx][2]))
-    .attr("fill", r.color);
-  setChip(`${r.label}<br><span class="lbl">loss now: <b style="color:${r.color}">${fmtI(T[idx][2])}</b></span>`);
-};
-
-scenes.s07 = p => {
-  only(["axesA1", "dots", "modeline", "extras"]);
-  setHud(1, 7, "the machine, assembled");
-  G.modeline.attr("clip-path", "url(#clipFull)");
-  modeline.attr("d", lineD(OLS.b0, OLS.b1, xE, ySc)).attr("stroke", C.blue);
-  dots.attr("cx", (d, i) => posScore(i)[0]).attr("cy", (d, i) => posScore(i)[1])
-      .attr("fill-opacity", 1).attr("fill", C.ink);
-  const pred = OLS.b0 + OLS.b1 * 12;
-  const o1 = ez(clamp01((p - 0.2) / 0.15));
-  const t2 = ez(clamp01((p - 0.35) / 0.4));
-  eGuide.attr("x1", xE(12)).attr("x2", xE(12)).attr("y1", ySc(0)).attr("y2", ySc(pred))
-    .attr("opacity", o1);
-  eDot.attr("cx", xE(12)).attr("cy", lerp(ySc(0), ySc(pred), t2))
-    .attr("opacity", o1 > 0 ? 1 : 0);
-  eLbl.attr("x", xE(12) + 12).attr("y", ySc(pred) - 10)
-    .text(`\u0177 \u2248 ${Math.round(pred)}`).attr("opacity", ez(clamp01((p - 0.7) / 0.2)));
-  llL1.attr("opacity", 0); llL2.attr("opacity", 0);
-  tLine.attr("opacity", 0); tLbl.attr("opacity", 0);
-  bLine.attr("opacity", 0); bLbl.attr("opacity", 0);
-  setChip(p < 0.3
-    ? `the finished model: <b>\u0177 = ${OLS.b0.toFixed(1)} \u2212 ${Math.abs(OLS.b1).toFixed(2)}\u00b7x</b>`
-    : p < 0.7
-      ? "<span class='lbl'>a new essay arrives \u2014 average sentence length: 12 words</span>"
-      : `prediction: <b>\u0177 \u2248 ${Math.round(pred)}</b> <span class="lbl">&mdash; a number. that is all linear regression is.</span>`);
-};
-
-scenes.s08 = p => {
-  only(["axesA2", "zone", "strips", "dots"]);
-  setHud(2, 8, "a different question");
-  G.axesA2.style("opacity", clamp01(p * 3 - 0.5));
-  G.zone.style("opacity", clamp01(p * 2 - 0.6));
-  G.strips.style("opacity", clamp01(p * 2.2 - 0.3));
-  dots.attr("cx", (d, i) => posScore(i)[0])
-      .attr("cy", (d, i) => lerp(posScore(i)[1], posStrip(i)[1],
-          ez(clamp01(p * 1.45 - i / N * 0.45))))
-      .attr("fill-opacity", 1)
-      .attr("fill", (d, i) => ez(clamp01(p * 1.45 - i / N * 0.45)) > 0.5 ? fillRead(i) : C.ink);
-  setChip(p < 0.55
-    ? "<span class='lbl'>same essays &mdash; new question: readable for a first-year, yes or no?</span>"
-    : "<span class='lbl'>two rows. the score is gone; only the label remains.</span>");
-};
-
-scenes.s09 = p => {
-  only(["axesA2", "zone", "strips", "dots", "modeline", "extras"]);
-  setHud(2, 9, "the number machine fails");
-  G.modeline.attr("clip-path", "url(#clipFull)");
-  dots.attr("cx", (d, i) => posStrip(i)[0]).attr("cy", (d, i) => posStrip(i)[1])
-      .attr("fill-opacity", 1).attr("fill", (d, i) => fillRead(i));
-  const o = clamp01(p * 2.6);
-  modeline.attr("stroke", C.gray).attr("stroke-dasharray", "7 5")
-    .attr("d", lineD(LL.b0, LL.b1, xE, yPr)).attr("opacity", o);
-  const o2 = ez(clamp01((p - 0.45) / 0.3));
-  llL1.attr("x", xE(6)).attr("y", yPr(LL.yAt6) - 12).text(LL.yAt6.toFixed(2))
-    .attr("opacity", o2);
-  llL2.attr("x", xE(28)).attr("y", yPr(LL.yAt28) + 20).text("\u2212" + Math.abs(LL.yAt28).toFixed(2))
-    .attr("opacity", o2);
-  tLine.attr("opacity", 0); tLbl.attr("opacity", 0);
-  bLine.attr("opacity", 0); bLbl.attr("opacity", 0);
-  eGuide.attr("opacity", 0); eDot.attr("opacity", 0); eLbl.attr("opacity", 0);
-  setChip(p < 0.5
-    ? "<span class='lbl'>point the old machine at the labels &mdash; it still answers a number</span>"
-    : `<b>${LL.yAt6.toFixed(2)}</b> and <b>\u22120.23</b> readable?! outside the probability zone &mdash; meaningless`);
-};
-
-scenes.s10 = p => {
-  only(["axesA2", "zone", "strips", "dots", "modeline"]);
-  setHud(2, 10, "squish the line (sigmoid)");
-  G.modeline.attr("clip-path", "url(#clipFull)");
-  dots.attr("cx", (d, i) => posStrip(i)[0]).attr("cy", (d, i) => posStrip(i)[1])
-      .attr("fill-opacity", 1).attr("fill", (d, i) => fillRead(i));
-  const t = ez(clamp01(p * 1.2));
-  const f = x => lerp(LL.b0 + LL.b1 * x, sig(READ.b0 + READ.b1 * x), t);
-  modeline.attr("stroke", d3.interpolateRgb(C.gray, C.blue)(t))
-    .attr("stroke-dasharray", null)
-    .attr("d", curveD(f, xE, yPr, 5, 29));
-  setChip(p < 0.45
-    ? "<span class='lbl'>keep the line\u2019s score z \u2014 but read it through the S-curve</span>"
-    : p < 0.9
-      ? "\u03c3(z) = 1 / (1 + e<sup>\u2212z</sup>) &mdash; any score, however wild, lands in 0\u20261"
-      : "<span class='lbl'>scores become probabilities &mdash; and probabilities we can act on</span>");
-};
-
-scenes.s11 = p => {
-  only(["axesA2", "zone", "strips", "dots", "modeline", "marks", "extras"]);
-  setHud(2, 11, "decision boundary");
-  G.modeline.attr("clip-path", "url(#clipFull)");
-  modeline.attr("stroke", C.blue).attr("stroke-dasharray", null)
-    .attr("d", curveD(x => sig(READ.b0 + READ.b1 * x), xE, yPr, 5, 29));
-  const o1 = ez(clamp01((p - 0.1) / 0.2));
-  tLine.attr("x1", M.l).attr("x2", W - M.r).attr("y1", yPr(0.5)).attr("y2", yPr(0.5))
-    .attr("opacity", o1);
-  tLbl.attr("x", W - M.r - 6).attr("y", yPr(0.5) - 7).text("threshold 0.5")
-    .attr("opacity", o1);
-  const o2 = ez(clamp01((p - 0.35) / 0.2));
-  bLine.attr("x1", xE(READ.boundaryX)).attr("x2", xE(READ.boundaryX))
-    .attr("y1", yPr(0)).attr("y2", yPr(1)).attr("opacity", o2);
-  bLbl.attr("x", xE(READ.boundaryX)).attr("y", yPr(1) - 12)
-    .text(`decision boundary \u2248 ${READ.boundaryX.toFixed(0)}-word sentences`)
-    .attr("opacity", o2);
-  llL1.attr("opacity", 0); llL2.attr("opacity", 0);
-  eGuide.attr("opacity", 0); eDot.attr("opacity", 0); eLbl.attr("opacity", 0);
-  dots.attr("cx", (d, i) => posStrip(i)[0]).attr("cy", (d, i) => posStrip(i)[1])
-      .attr("fill-opacity", 1)
-      .attr("fill", (d, i) => fillRead(i));
-  marks.attr("transform", (d, k) => `translate(${posStrip(misIdx[k])[0]},${posStrip(misIdx[k])[1]})`)
-    .attr("opacity", ez(clamp01((p - 0.6) / 0.25)));
-  setChip(p < 0.45
-    ? "<span class='lbl'>every essay now gets P(readable)</span>"
-    : p < 0.75
-      ? "decide: P \u2265 0.5 \u2192 readable &middot; P < 0.5 \u2192 not readable"
-      : `<b>${READ.nCorrect} of ${READ.n}</b> correct <span class="lbl">&mdash; the circled ones are its mistakes</span>`);
-};
-
-scenes.s12 = p => {
-  only(["axesSp", "zone", "dots", "spam", "modeline", "extras"]);
-  setHud(2, 12, "spam \u2014 slide the threshold");
-  G.modeline.attr("clip-path", "url(#clipFull)");
-  G.dots.style("opacity", clamp01(1 - p * 4));
-  G.axesSp.style("opacity", clamp01((p - 0.04) * 3));
-  G.zone.style("opacity", clamp01((p - 0.04) * 3));
-  spam.attr("cx", (d, i) => posSpam(i)[0])
-      .attr("cy", (d, i) => posSpam(i)[1])
-      .attr("opacity", (d, i) => ez(clamp01(p * 1.6 - i * 0.02 - 0.1)));
-  const co = clamp01((p - 0.4) * 3);
-  modeline.attr("stroke", C.verm).attr("stroke-dasharray", null)
-    .attr("d", curveD(x => sig(SP.b0 + SP.b1 * x), xSp, yPr, -0.5, 9.5))
-    .attr("opacity", co);
-  const s = S.slider;
-  tLine.attr("x1", M.l).attr("x2", W - M.r).attr("y1", yPr(s)).attr("y2", yPr(s))
-    .attr("opacity", co);
-  tLbl.attr("x", W - M.r - 6).attr("y", yPr(s) - 7)
-    .text(`threshold ${s.toFixed(2)}`).attr("opacity", co);
-  llL1.attr("opacity", 0); llL2.attr("opacity", 0);
-  bLine.attr("opacity", 0); bLbl.attr("opacity", 0);
-  eGuide.attr("opacity", 0); eDot.attr("opacity", 0); eLbl.attr("opacity", 0);
-  /* color by the 2x2 outcomes: red ring = a mistake (missed spam or false alarm) */
-  spam.attr("fill", (d, i) => SP.labels[i] ? C.verm : "#7fb4d8")
-      .attr("stroke", (d, i) => {
-        const pred = sig(SP.b0 + SP.b1 * d) >= s;
-        return (pred !== !!SP.labels[i]) ? C.red : "#fff";
-      })
-      .attr("stroke-width", (d, i) => {
-        const pred = sig(SP.b0 + SP.b1 * d) >= s;
-        return (pred !== !!SP.labels[i]) ? 2.6 : 1;
-      });
-  const nSp = d3.sum(SP.labels), nOk = SP.labels.length - nSp;
-  let caught = 0, missed = 0, alarms = 0;
-  SP.counts.forEach((c, i) => {
-    const pred = sig(SP.b0 + SP.b1 * c) >= s;
-    if (pred && SP.labels[i]) caught++;
-    if (!pred && SP.labels[i]) missed++;
-    if (pred && !SP.labels[i]) alarms++;
-  });
-  setChip(p < 0.45
-    ? "<span class='lbl'>same machine, new problem: P(spam) from one word</span>"
-    : `caught <b>${caught}/${nSp}</b> spam &middot; missed <b>${missed}</b> &middot; false alarms <b>${alarms}/${nOk}</b>`);
-};
-
-scenes.s13 = p => {
-  only(["coda"]);
-  setHud(3, 13, "same machine, two lenses");
-  const gs = G.coda.selectAll("g").nodes();
-  if (gs[0]) d3.select(gs[0]).style("opacity", ez(clamp01(p * 2.2)));
-  if (gs[1]) d3.select(gs[1]).style("opacity", ez(clamp01(p * 2.2 - 1)));
-  setChip(p < 0.5
-    ? "linear regression: features \u2192 a number"
-    : "logistic regression: the same sum, wrapped in \u03c3 \u2192 a probability");
-};
-
-/* engine + a small debug/testing hook */
-const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const stepEls = Array.from(document.querySelectorAll(".step"));
-let activeId = null, lastP = 0;
-window.__renderScene = (id, p) => { document.body.dataset.scene = id; activeId = id; lastP = p; scenes[id](p); };
-
-function renderActive() {
-  if (activeId && scenes[activeId]) scenes[activeId](lastP);
-}
-
-let frameCount = 0;
-function tick() {
-  const mid = window.innerHeight * 0.5;
-  let id = null, prog = 0;
-  for (const el of stepEls) {
-    const r = el.getBoundingClientRect();
-    if (r.top <= mid && r.bottom > mid) {
-      id = el.dataset.scene;
-      prog = (mid - r.top) / r.height;
-      break;
-    }
-  }
-  if (id) {
-    if (id !== activeId) {
-      activeId = id;
-      document.body.dataset.scene = id;
-    }
-    const p = RM ? 1 : clamp01(prog);
-    lastP = p;
-    scenes[id](p);
-  }
-  requestAnimationFrame(tick);
-}
-
-document.getElementById("threshold").addEventListener("input", ev => {
-  S.slider = +ev.target.value;
-  renderActive();
-});
-
-/* initial state */
-document.body.dataset.scene = "s01";
-scenes.s01(RM ? 1 : 0.2);
-requestAnimationFrame(tick);
-})();
-</script>
+<script src="../vendor/katex/katex.min.js"></script>
+<script src="../vendor/katex/auto-render.min.js" onerror="this.onerror=null"></script>
+<script src="lr-math.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
