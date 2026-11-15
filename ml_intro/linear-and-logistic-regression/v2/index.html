@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From a Number to a Yes — linear &amp; logistic regression, visualised</title>
+<style>
+:root{
+  --paper:#fbfaf7; --panel:#ffffff; --ink:#252932; --muted:#6d7280; --line:#e2ded4;
+  --blue:#0072B2; --verm:#D55E00; --orange:#E69F00; --red:#b91c1c; --green:#009E73;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);
+     font:17px/1.65 Georgia,'Times New Roman',serif;}
+a{color:var(--blue)}
+a:hover{color:var(--verm)}
+header.intro{min-height:92vh;display:flex;flex-direction:column;justify-content:center;
+  align-items:center;text-align:center;padding:4rem 1.5rem;max-width:52rem;margin:0 auto}
+.kicker{font:600 12px/1.4 system-ui,sans-serif;letter-spacing:.18em;text-transform:uppercase;color:var(--verm)}
+h1{font-size:clamp(2.3rem,5vw,3.7rem);margin:.55rem 0 .4rem;line-height:1.1;font-weight:700}
+.sub{font-size:1.16rem;color:var(--muted);max-width:37rem;margin:0}
+.cue{margin-top:3.2rem;color:var(--muted);font:14px system-ui;animation:bob 1.7s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(9px)}}
+@media (prefers-reduced-motion:reduce){.cue{animation:none}html{scroll-behavior:auto}}
+
+main.scrolly{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);
+  gap:1.5rem 2.5rem;max-width:78rem;margin:0 auto;padding:0 1.5rem}
+#figure{position:sticky;top:0;height:100vh;display:flex;align-items:center}
+#figInner{position:relative;width:100%}
+svg#chart{width:100%;height:auto;display:block;overflow:hidden}
+svg text{font-family:system-ui,sans-serif}
+.axis line{stroke:#c9c4b8;stroke-width:1}
+.axis text{fill:var(--muted);font-size:11px}
+.axtitle{fill:var(--muted);font-size:11.5px}
+.paneltitle{fill:#4a4f5a;font-size:12px;font-weight:600}
+
+#hud{position:absolute;top:1.5%;left:1%;font:600 10.5px/1.5 system-ui,sans-serif;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+#chip{position:absolute;left:50%;bottom:2.2%;transform:translateX(-50%);text-align:center;
+  font:13.5px/1.45 system-ui,sans-serif;color:var(--ink);background:rgba(255,255,255,.93);
+  border:1px solid var(--line);border-radius:9px;padding:.5rem .85rem;max-width:90%;
+  box-shadow:0 1px 5px rgba(40,30,10,.06)}
+#chip b{color:var(--verm);font-size:1.08em}
+#chip .lbl{color:var(--muted)}
+#sliderWrap{position:absolute;left:50%;bottom:11%;transform:translateX(-50%);display:none;
+  align-items:center;gap:.55rem;background:rgba(255,255,255,.95);border:1px solid var(--line);
+  border-radius:9px;padding:.42rem .8rem;font:12.5px system-ui,sans-serif;color:var(--muted);white-space:nowrap}
+body[data-scene="s12"] #sliderWrap{display:flex}
+#sliderWrap input{width:150px;accent-color:var(--verm)}
+
+.handle{fill:#fff;stroke:var(--verm);stroke-width:2.6;opacity:0;pointer-events:none;cursor:grab}
+body[data-scene="s02"] .handle{opacity:1;pointer-events:all}
+.handle:active{cursor:grabbing}
+
+#steps{display:flex;flex-direction:column}
+.step{min-height:100vh;display:flex;align-items:center;padding:1.5rem 0}
+.step .card{background:var(--panel);border:1px solid var(--line);border-radius:13px;
+  padding:1.5rem 1.7rem 1.6rem;max-width:31rem;box-shadow:0 2px 12px rgba(60,50,20,.07)}
+.card h3{font-size:1.42rem;margin:.35rem 0 .65rem;line-height:1.22}
+.card p{margin:.55rem 0;font-size:1.01rem}
+.card sup,.card sub{font-size:.72em}
+.prompt{border-left:3px solid var(--verm);background:#fdf6ee;padding:.6rem .95rem;
+  margin:.75rem 0;font-size:.95rem;border-radius:0 9px 9px 0}
+.prompt strong{color:var(--verm)}
+
+footer{max-width:78rem;margin:0 auto;padding:3.5rem 1.5rem 6rem;display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(15.5rem,1fr));gap:1.2rem}
+footer .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:1.15rem 1.35rem;font-size:.95rem;line-height:1.55}
+footer h4{margin:.1rem 0 .45rem;font-size:1.02rem}
+.credit{grid-column:1/-1;color:var(--muted);font-size:.88rem;line-height:1.6}
+
+@media (max-width:920px){
+  main.scrolly{grid-template-columns:1fr;gap:0}
+  #figure{height:auto;background:var(--paper);border-bottom:1px solid var(--line);
+    padding:.4rem 0 .15rem;z-index:5}
+  .step{min-height:76vh;padding:1.1rem 0}
+  #hud{font-size:9px}
+  #chip{font-size:11.5px;padding:.4rem .6rem}
+  #sliderWrap{bottom:12%;font-size:11px}
+  #sliderWrap input{width:120px}
+}
+</style>
+</head>
+<body data-scene="s01">
+
+<header class="intro">
+  <div class="kicker">MLT · Modeling — a visual companion to session 06</div>
+  <h1>From a Number to a Yes</h1>
+  <p class="sub">Linear regression, gradient descent and logistic regression —
+    animated, and reacting to your scroll. Built for people who study language,
+    not calculus.</p>
+  <div class="cue">scroll &#9662;</div>
+</header>
+
+<main class="scrolly">
+  <figure id="figure" aria-label="An animated visualization that changes as you scroll">
+    <div id="figInner">
+      <svg id="chart" viewBox="0 0 680 560" role="img"
+           aria-label="Scatter plots, a fitted line, gradient descent on a loss map, a sigmoid curve and a spam threshold slider"></svg>
+      <div id="hud"></div>
+      <div id="chip"></div>
+      <div id="sliderWrap">
+        <span>cautious</span>
+        <input id="threshold" type="range" min="0.1" max="0.9" step="0.05" value="0.5"
+               aria-label="Classification threshold">
+        <span>aggressive</span>
+      </div>
+    </div>
+  </figure>
+
+  <div id="steps">
+
+    <section class="step" data-scene="s01"><div class="card">
+      <div class="kicker">Act 1 · the number machine</div>
+      <h3>Forty essays, one hunch</h3>
+      <p>Every dot is an essay written by a first-year student. Along the bottom: the
+         average length of its sentences, in words. Up the side: a readability score
+         from 0 to 100.</p>
+      <p>Notice the drift — <em>longer sentences, lower scores</em>. Machine learning
+         starts exactly here: a hunch that one measurement might predict the other.</p>
+    </div></section>
+
+    <section class="step" data-scene="s02"><div class="card">
+      <div class="kicker">Act 1 · scene 2 · your turn</div>
+      <h3>Draw your best line</h3>
+      <div class="prompt"><strong>Predict first:</strong> before you touch anything —
+        where would you draw a line that turns sentence length into a score? Say your
+        answer out loud, then try it.</div>
+      <p>Grab the two handles and move them. The chip keeps score: the total
+         <em>squared distance</em> between your line and the forty essays. In class we
+         call this number the <em>loss</em>. Lower is better.</p>
+    </div></section>
+
+    <section class="step" data-scene="s03"><div class="card">
+      <div class="kicker">Act 1 · scene 3</div>
+      <h3>How wrong is a line?</h3>
+      <p>A line is a machine: sentence length goes in, a score comes out. To measure
+         how wrong it is, drop a line from each essay&rsquo;s true score to the line —
+         that gap is the <em>residual</em>.</p>
+      <p>Now the strange-but-brilliant part: turn each gap into an <em>actual square</em>.
+         Why? Gaps above and below the line cancel each other out — squares don&rsquo;t.
+         And big misses get punished much more than small ones.</p>
+    </div></section>
+
+    <section class="step" data-scene="s04"><div class="card">
+      <div class="kicker">Act 1 · scene 4</div>
+      <h3>Every line has a number</h3>
+      <p>Add up all the squares and you get one number: the <em>total squared
+         error</em>. Every possible line has one — terrible lines have huge numbers,
+         better lines smaller ones.</p>
+      <p>Linear regression has a single obsession: <em>find the line with the smallest
+         number</em>. Keep your own score in mind — the model will try to beat it.</p>
+    </div></section>
+
+    <section class="step" data-scene="s05"><div class="card">
+      <div class="kicker">Act 1 · scene 5</div>
+      <h3>The hot&ndash;cold game <span style="font-weight:400;font-size:.8em">(gradient descent)</span></h3>
+      <p>A model can&rsquo;t eyeball forty dots the way you just did. It plays the
+         children&rsquo;s hot&ndash;cold game: stand on a line, <em>feel which way is
+         downhill</em> — the slope of the loss — take a small step, repeat.</p>
+      <p>In the right-hand map, height is error. The model is the ball: blind to the
+         essays, rolling into the valley. This loop is <em>gradient descent</em> — and it
+         is how almost everything in this course learns.</p>
+    </div></section>
+
+    <section class="step" data-scene="s06"><div class="card">
+      <div class="kicker">Act 1 · scene 6</div>
+      <h3>How big is a step? <span style="font-weight:400;font-size:.8em">(learning rate)</span></h3>
+      <p>One knob rules the whole game: the <em>learning rate</em> — the size of each
+         step. Too small, and training crawls; you&rsquo;ll retire before it arrives.</p>
+      <p>Too large, and the model overshoots the valley and the loss
+         <em>explodes</em>. Just right, and it settles calmly at the bottom. Every real
+         training run you will ever debug is this exact story.</p>
+    </div></section>
+
+    <section class="step" data-scene="s07"><div class="card">
+      <div class="kicker">Act 1 · scene 7</div>
+      <h3>The machine, assembled</h3>
+      <p>The finished model is embarrassingly small:
+         <em>&#375; = 93.3 &minus; 2.19&thinsp;&middot;&thinsp;x</em>. Two numbers —
+         intercept and slope — are everything it learned.</p>
+      <p>Feed it a new essay with 12-word sentences and it answers a number. Not a
+         guess — a prediction. Linear regression: <em>features in, a number out</em>.</p>
+    </div></section>
+
+    <section class="step" data-scene="s08"><div class="card">
+      <div class="kicker">Act 2 · the pivot</div>
+      <h3>A different question</h3>
+      <p>Now the writing program changes its mind. It doesn&rsquo;t want a score from
+         0 to 100 — it wants a decision: <em>is this essay readable for a first-year?
+         Yes or no?</em></p>
+      <p>Watch the same forty essays collapse into two rows. Every essay keeps its
+         sentence-length position. Everything else melts away.</p>
+    </div></section>
+
+    <section class="step" data-scene="s09"><div class="card">
+      <div class="kicker">Act 2 · scene 9</div>
+      <h3>The number machine fails</h3>
+      <p>We already own a machine that outputs numbers — why not point it at the 1s
+         and 0s?</p>
+      <p>Fitted to the labels, the line dutifully answers <em>1.07</em> for short
+         sentences — &ldquo;7% more than fully readable&rdquo;? — and <em>&minus;0.23</em>
+         for long ones. Negative readability. The old machine is answering a question
+         nobody asked, in units that don&rsquo;t exist.</p>
+    </div></section>
+
+    <section class="step" data-scene="s10"><div class="card">
+      <div class="kicker">Act 2 · scene 10</div>
+      <h3>Squish the line <span style="font-weight:400;font-size:.8em">(the sigmoid)</span></h3>
+      <p>The fix is famous. Keep the line — its score
+         <em>z = &beta;<sub>0</sub> + &beta;<sub>1</sub>x</em> still measures evidence —
+         but before showing it to anyone, push it through a squishing function:</p>
+      <p style="text-align:center;font-size:1.12em">
+        <em>&sigma;(z) = 1 / (1 + e<sup>&minus;z</sup>)</em></p>
+      <p>The S-curve takes any number, however wild, and squashes it into
+         <em>0&hellip;1</em> — where it can finally be read as a <em>probability</em>.
+         That is the whole trick: linear regression, wrapped in a non-linear function.</p>
+    </div></section>
+
+    <section class="step" data-scene="s11"><div class="card">
+      <div class="kicker">Act 2 · scene 11</div>
+      <h3>From probability to decision</h3>
+      <p>Every essay now gets a <em>probability</em> of being readable. To decide, pick
+         a threshold — 0.5 by default. Where the curve crosses it, the model flips from
+         &ldquo;not readable&rdquo; to &ldquo;readable&rdquo;: that x is the
+         <em>decision boundary</em>, at &asymp; 15-word sentences.</p>
+      <p>The essays it gets wrong are circled — 33 of 40 correct here. Behind the
+         scenes, the curve was trained by <em>log-loss</em>, the logistic cousin of
+         squared error: being confident and wrong hurts a lot.</p>
+    </div></section>
+
+    <section class="step" data-scene="s12"><div class="card">
+      <div class="kicker">Act 2 · scene 12 · your turn</div>
+      <h3>Same machine, new problem: spam</h3>
+      <p>This is not a readability trick — it&rsquo;s your spam filter. In the notebook
+         you&rsquo;ll train this exact machine on emails, with one feature: how many
+         times the word <em>free</em> appears. The fitted curve already says
+         &ldquo;free&rdquo; three times is more-likely-than-not spam.</p>
+      <div class="prompt"><strong>Modify:</strong> slide the threshold. Cautious (0.8)
+        — few real emails get flagged, but spam slips through. Aggressive (0.5) — more
+        spam caught, at a price. What would <em>your</em> inbox prefer?</div>
+      <p>Every deployed classifier is this slider.</p>
+    </div></section>
+
+    <section class="step" data-scene="s13"><div class="card">
+      <div class="kicker">Act 3 · coda</div>
+      <h3>Same machine, two lenses</h3>
+      <p>Linear regression predicts a <em>number</em>. Logistic regression predicts a
+         <em>probability</em>. And it is literally the same machine — a weighted sum of
+         features, wrapped in a non-linear function.</p>
+      <p>Sigmoid for two classes; swap in <em>softmax</em> and you have multiclass;
+         stack these machines and you&rsquo;re walking toward neural networks. Next
+         stop: the notebook — where logistic regression faces your Naive Bayes spam
+         filter head-to-head.</p>
+    </div></section>
+
+  </div>
+</main>
+
+<footer>
+  <div class="card"><h4>Linear regression</h4>
+    Features in, a number out: &#375; = &beta;<sub>0</sub> + &beta;<sub>1</sub>x.
+    Trained by making the squared error small — by hand, you drew it; the model uses
+    gradient descent.</div>
+  <div class="card"><h4>Logistic regression</h4>
+    The same weighted sum, wrapped in &sigma; (or softmax for many classes): a
+    probability, a threshold, a decision. Fast to train — and the last layer of many a
+    neural network.</div>
+  <div class="card"><h4>Keep going</h4>
+    The <a href="https://github.com/liadmagen/Modeling_course/blob/main/exercises/NN_logistic_regression_spam_classification.ipynb">spam
+    notebook</a>: train this machine on real emails, then face it off against your
+    Naive Bayes classifier — precision, recall, F1.</div>
+  <div class="card"><h4>Read &amp; watch</h4>
+    Jurafsky &amp; Martin, <a href="https://web.stanford.edu/~jurafsky/slp3/5.pdf">Speech and
+    Language Processing, ch. 5</a>; and the page that inspired this format:
+    <a href="https://r2d3.us/visual-intro-to-machine-learning-part-1/">R2D3&rsquo;s visual
+    introduction to machine learning</a>.</div>
+  <div class="credit">Built for MLT &mdash; Modeling, FH Campus Wien. Every number on
+    this page is a real fit: regenerate them with <code>generate_data.py</code>
+    (seeded &amp; reproducible). Structure inspired by r2d3.us; scroll-driven figure
+    built with D3.js.</div>
+</footer>
+
+<noscript><p style="text-align:center;padding:2rem">This page needs JavaScript for its
+animations — the full text of every step is still readable above.</p></noscript>
+
+<script src="../data.js"></script>
+<script src="vendor/anime.umd.min.js"></script>
+<script src="app-v2.js"></script>
+</body>
+</html>
