@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fair Scales, Honest Models — Scaling and Generalization</title>
+<meta name="description" content="A scroll-driven visual introduction to feature scaling (normalization and standardization), generalization, and L1 and L2 regularization for language students: watch k-means go wrong on raw units, then watch a polynomial memorise essays and two penalties tame it.">
+<link rel="stylesheet" href="../vendor/katex/katex.min.css">
+<style>
+  :root{
+    --ink:#1d2733; --muted:#55636f; --bg:#faf9f6; --card:#ffffff;
+    /* one meaning per colour. Part 1 (people): blue and orange = the two clusters k-means found.
+       Part 2 (essays): blue = training essays, orange = fresh test essays. Always: purple = what you control or pick,
+       teal = the best / the truth, red = a mistake, dark grey = the model's own line. */
+    --blue:#1f6fd1; --blue-soft:#dbe8fa; --orange:#d9730d; --orange-soft:#fbe6d0;
+    --grey:#7d8894; --teal:#0f8a8a; --line:#e5e1d8; --accent:#6d5bd0; --red:#b3261e;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;font-size:17px;}
+  h1,h2,h3{line-height:1.2}
+  a{color:var(--blue)}
+  .katex{font-size:1.05em}
+
+  /* ---------- hero ---------- */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;
+    text-align:center;padding:3rem 1.2rem;background:
+    radial-gradient(1200px 500px at 20% -10%, #e8efff 0%, transparent 60%),
+    radial-gradient(1000px 500px at 85% 110%, #fdeeda 0%, transparent 55%), var(--bg);}
+  .hero .kicker{letter-spacing:.2em;text-transform:uppercase;font-size:.78rem;color:var(--accent);font-weight:700}
+  .hero h1{font-size:clamp(2.1rem,6vw,3.9rem);margin:.6rem 0 .6rem;max-width:18ch}
+  .hero .lead{max-width:60ch;color:var(--muted);font-size:1.12rem;margin:.3rem 0}
+  .two{display:grid;grid-template-columns:1fr auto 1fr;gap:.4rem .9rem;align-items:center;margin:1.6rem 0 1rem;text-align:left;
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1rem 1.3rem;
+    box-shadow:0 10px 30px rgba(30,40,60,.07);font-size:1rem;max-width:700px;width:100%}
+  .two .arrow{color:var(--muted);font-weight:700}
+  .two .ans{font-weight:700;border-radius:10px;padding:.25rem .7rem;border:2px solid;display:inline-block}
+  .two .ans.n{background:var(--blue-soft);border-color:var(--blue);color:#154f98}
+  .two .ans.y{background:var(--orange-soft);border-color:var(--orange);color:#8a4a07}
+  .two .tagline{grid-column:1/-1;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:.3rem}
+  .hero .uses{max-width:60ch;font-size:.95rem;color:var(--muted);margin-top:.8rem}
+  .scroll-hint{margin-top:2.2rem;color:var(--muted);font-size:.85rem;animation:bob 1.8s ease-in-out infinite}
+  .scroll-hint .arrow{display:block;font-size:1.4rem}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
+
+  /* ---------- progress nav ---------- */
+  #dotnav{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:12px}
+  #dotnav a{width:12px;height:12px;border-radius:50%;background:#cfc9bc;display:block;position:relative;transition:background .3s,transform .3s}
+  #dotnav a.on{background:var(--accent);transform:scale(1.35)}
+  #dotnav a span{position:absolute;right:20px;top:50%;transform:translateY(-50%);white-space:nowrap;
+    background:var(--ink);color:#fff;font-size:.72rem;padding:.15rem .55rem;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s}
+  #dotnav a:hover span,#dotnav a:focus span{opacity:1}
+
+  /* ---------- scrolly layout ---------- */
+  .chapter{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:1.5rem;
+    padding:0 clamp(.5rem,3vw,3rem);align-items:start}
+  .chapter + .chapter{margin-top:10vh}
+  .sticky{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
+    justify-content:center;align-items:center;gap:.4rem;padding:.6rem 0;min-width:0}
+  .sticky svg{width:100%;max-width:720px;height:auto;max-height:calc(100vh - 190px);background:var(--card);
+    border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(30,40,60,.07)}
+  .sticky .caption{font-size:.92rem;color:var(--muted);text-align:center;min-height:3em;max-width:720px;line-height:1.45}
+  .sticky .caption b{color:var(--ink)}
+  .controls{display:none;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;justify-content:center;max-width:720px;font-size:.9rem}
+  .controls.on{display:flex}
+  .controls .grp{display:flex;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;justify-content:center}
+  .controls .grp[hidden]{display:none}
+  .controls.off{opacity:.45}
+  .controls button:disabled,.controls input:disabled,.controls select:disabled{cursor:not-allowed}
+  .controls label{display:flex;align-items:center;gap:.4rem;color:var(--muted)}
+  .controls select,.controls button{font:inherit;font-size:.9rem;padding:.25rem .55rem;border-radius:8px;
+    border:1px solid #c9c3b6;background:#fff;color:var(--ink)}
+  .controls button{cursor:pointer;background:#f4f2ec}
+  .controls button:hover:not(:disabled){background:#ece8dd}
+  .controls button[aria-pressed=true],.controls button[aria-pressed=true]:hover:not(:disabled){background:var(--accent);color:#fff;border-color:var(--accent)}
+  .controls input[type=range]{width:min(210px,36vw);accent-color:var(--accent)}
+  .controls .out{font-family:var(--mono);color:var(--ink);min-width:8ch}
+  .controls .end{font-size:.82rem;color:var(--muted);white-space:nowrap}
+  :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .steps{display:flex;flex-direction:column;gap:55vh;padding:52vh 0 55vh} /* the figure pins before the first step becomes active */
+  .steps.tall{padding-bottom:150vh} /* the figure stays pinned while a control below it is brought into view */
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:1.2rem 1.35rem;box-shadow:0 6px 18px rgba(30,40,60,.06);
+    opacity:.25;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease}
+  .step.active{opacity:1;transform:none}
+  .step h3{margin:.1rem 0 .5rem;font-size:1.22rem}
+  .step p{margin:.45rem 0;color:#33404f}
+  .step .tag{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--accent);background:#efecfb;border-radius:6px;padding:.12rem .5rem;margin-bottom:.4rem}
+  .step .opt{color:#7a4a00;background:#fdf0d8;border-radius:6px;padding:.1rem .45rem;font-size:.72rem;font-weight:700;margin-left:.3rem;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+  .formula{display:block;background:#f4f2ec;border:1px solid var(--line);border-radius:10px;
+    padding:.5rem .8rem;margin:.55rem 0;overflow-x:auto;text-align:center}
+  .formula .katex{font-size:1em}
+  .note{font-size:.88rem;color:var(--muted)}
+  .legend-b,.legend-o{white-space:nowrap;font-weight:700}
+  .legend-b{color:#154f98} .legend-o{color:#8a4a07}
+  .predict{border:2px dashed #cfc7f0;background:#f8f6ff;border-radius:12px;padding:.6rem .9rem;margin:.6rem 0}
+  .predict .q{font-weight:600;margin:0 0 .4rem}
+  .predict button{font:inherit;font-size:.9rem;padding:.25rem .8rem;margin:0 .4rem .3rem 0;border-radius:8px;border:1px solid #b9aeea;background:#fff;cursor:pointer}
+  .predict button:hover{background:#efecfb}
+  .predict button.picked{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .predict .reveal{margin-top:.5rem;padding-top:.5rem;border-top:1px solid #dcd6f5}
+  .predict .reveal[hidden]{display:none}
+  svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  foreignObject{overflow:visible}
+  .svgmath{font-size:14px;line-height:1.3;color:var(--ink);width:100%;white-space:nowrap}
+  .svgmath.c{text-align:center}
+  #tip{position:fixed;z-index:100;pointer-events:none;background:var(--ink);color:#fff;font-size:.82rem;line-height:1.4;
+    padding:.4rem .6rem;border-radius:8px;max-width:240px;opacity:0;transition:opacity .12s}
+  #tip.on{opacity:1}
+  .hit{cursor:pointer}
+
+  /* recap cards: plain HTML in normal flow, so text can never overlap */
+  .panel{width:100%;max-width:720px}
+  .rgroup{display:flex;flex-direction:column;gap:.55rem}
+  .rgroup[hidden]{display:none}
+  .rcard{display:flex;gap:.8rem;align-items:center;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:.5rem .9rem}
+  .rcard .badge{flex:none;width:2.1rem;height:2.1rem;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .rcard.good{border-color:var(--blue)} .rcard.good .badge{background:var(--blue)}
+  .rcard.warn{border-color:var(--orange)} .rcard.warn .badge{background:var(--orange)}
+  .rcard .rtxt{flex:1;min-width:0}
+  .rcard .rtxt>b{display:block;font-size:1.02rem}
+  .rcard .rform{margin-top:.1rem;overflow-x:auto;overflow-y:hidden}
+  .rcard .rform .katex{font-size:1.05em}
+  .rcard .rsub{color:var(--muted);font-size:.93rem;line-height:1.4}
+
+  footer{border-top:1px solid var(--line);margin-top:8vh;padding:3rem 1.2rem 4rem;
+    text-align:center;color:var(--muted);font-size:.9rem}
+  footer p{max-width:72ch;margin:.5rem auto}
+
+  @media (prefers-reduced-motion:reduce){.step{transition:none}html{scroll-behavior:auto}.scroll-hint{animation:none}}
+
+  @media (max-width:920px){
+    body{font-size:16px}
+    .chapter{grid-template-columns:minmax(0,1fr)}
+    /* The figure is pinned in the top half of the screen; a step becomes active when its top
+       reaches 66% of the viewport height (see app.js), so the active box sits fully below the figure. */
+    .sticky{top:0;height:54vh;z-index:5;padding:.25rem 0;background:var(--bg);gap:.2rem;justify-content:flex-start}
+    .sticky svg{max-height:calc(54vh - 112px)}
+    .sticky .caption{font-size:.78rem;min-height:2.6em;line-height:1.3;padding:0 .5rem}
+    .controls{gap:.25rem .6rem;font-size:.82rem}
+    .controls .grp{gap:.25rem .6rem}
+    .controls button{padding:.2rem .5rem;font-size:.82rem}
+    .controls input[type=range]{width:34vw}
+    .controls .out{display:none}
+    .caption .lg{display:none}
+    .step,.predict,.predict button,.step .controls button,.step .controls input{scroll-margin-top:60vh}
+    .steps,.steps.tall{padding:58vh 0 40vh;gap:34vh}
+    .steps.tall{padding-bottom:70vh}
+    .formula{padding:.4rem .5rem}.formula .katex{font-size:.92em}
+    .two{grid-template-columns:1fr;text-align:center}.two .arrow{transform:rotate(90deg)}
+    .rcard{padding:.25rem .55rem;gap:.5rem}.rgroup{gap:.3rem}
+    .rcard .badge{width:1.6rem;height:1.6rem;font-size:.85rem}
+    .rcard .rtxt>b{font-size:.92rem}.rcard .rsub{font-size:.8rem;line-height:1.25}
+    #dotnav{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="kicker">Introduction to ML for Language Technologies</div>
+  <h1>Fair Scales, Honest Models</h1>
+  <p class="lead">Why do models care about units, and how do they avoid simply memorising?</p>
+  <div class="two" aria-label="Two questions this page answers">
+    <span>Is a gap of 0.10 m as big as a gap of 20 kg?</span><span class="arrow">→</span><span class="ans n">scaling: put features on a fair footing</span>
+    <span>Will it still work on essays it has never seen?</span><span class="arrow">→</span><span class="ans y">generalization: and regularization to get there</span>
+    <span class="tagline">first the units, then the memorising</span>
+  </div>
+  <p class="lead">You will watch k-means fail on the wrong units and succeed on fair ones, then watch a curve memorise
+     some essays and two kinds of penalty, L2 and L1, calm it down.</p>
+  <p class="uses">All data on this page is made up: {{n}} invented people and {{nTrain}} + {{nTest}} invented essays, so that every dot is visible.
+     The ideas are the ones behind many text classifiers and clustering tools.</p>
+  <div class="scroll-hint">scroll to begin<span class="arrow">↓</span></div>
+</header>
+
+<nav id="dotnav" aria-label="Chapters"></nav>
+<div id="tip" role="status"></div>
+
+<main>
+
+  <!-- ================= Chapter 1 ================= -->
+  <section class="chapter" id="ch1">
+    <div class="sticky">
+      <svg id="viz1" role="img" aria-label="Scatter plot of made-up people: height in metres against body weight in kilograms, then the two hidden groups"></svg>
+      <div class="caption" id="cap1"></div>
+      <div class="controls" id="ctl1"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="data">
+        <span class="tag">1 · Two measurements</span>
+        <h3>{{n}} made-up people</h3>
+        <p>Every dot is one person we invented: height in metres across, body weight in kilograms up. Nothing here is real data.
+           We want a computer to find the groups hiding among these dots, without being told who belongs where.</p>
+      </div>
+      <div class="step" data-scene="groups">
+        <span class="tag">1 · Two measurements</span>
+        <h3>Two hidden groups</h3>
+        <p>We secretly built the dots from two groups, A (circles) and B (diamonds). They differ mainly in height: no A person is taller than
+           {{aMaxH}} m, no B person shorter than {{bMinH}} m. Their weights overlap almost completely.</p>
+        <p>A good method should rediscover exactly this split.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 2 ================= -->
+  <section class="chapter" id="ch2">
+    <div class="sticky">
+      <svg id="viz2" role="img" aria-label="Two people picked from the scatter plot, and how much height and weight each add to the distance between them; then the same scatter drawn with equal scales on both axes"></svg>
+      <div class="caption" id="cap2"></div>
+      <div class="controls" id="ctl2">
+        <button type="button" id="pairEx">Gaps 0.10 m, 20 kg</button>
+        <button type="button" id="pairX">Tall and short, same weight</button>
+        <button type="button" id="pairRnd">Random pair</button>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="gaps">
+        <span class="tag">2 · What “close” means</span>
+        <h3>Distance adds up squared gaps</h3>
+        <p>A computer calls two people close when the distance between their numbers is small. That distance squares each gap and adds them up.</p>
+        <span class="formula">\(d=\sqrt{(\Delta\text{height})^2+(\Delta\text{weight})^2}\)</span>
+        <p>Take 1.75 m, 85 kg and 1.65 m, 65 kg. The gaps are 0.10 and 20, squared 0.01 and 400: weight supplies {{exShare}} of the squared distance.
+           Click two dots, or use the buttons.</p>
+      </div>
+      <div class="step" data-scene="equal">
+        <span class="tag">2 · What “close” means</span>
+        <h3>What k-means sees</h3>
+        <p>Draw both axes to the same scale, one unit across for one unit up, and height shrinks to a sliver: 0.1 m is nothing next to 20 kg.
+           Even a tall and a short person of similar weight, {{xgDh}} m apart, are at distance only {{xgD}}, far closer than the 20.0 above.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 3 ================= -->
+  <section class="chapter" id="ch3">
+    <div class="sticky">
+      <svg id="viz3" role="img" aria-label="k-means on the made-up people: two centres, people joining the nearest centre, centres moving; the final clusters on metres and kilograms; then the same people with height in centimetres"></svg>
+      <div class="caption" id="cap3"></div>
+      <div class="controls" id="ctl3">
+        <span class="grp" id="grpKm">
+          <button type="button" id="kmBack">◀ Back</button>
+          <button type="button" id="kmNext">Next ▶</button>
+          <button type="button" id="kmAuto">Follow scroll</button>
+        </span>
+        <span class="grp" id="grpUnit" hidden>
+          <button type="button" data-unit="m" aria-pressed="true">Height in metres</button>
+          <button type="button" data-unit="cm" aria-pressed="false">Height in centimetres</button>
+        </span>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="how">
+        <span class="tag">3 · k-means in 60 seconds</span>
+        <h3>Assign, move, repeat</h3>
+        <p>k-means looks for k groups, here two. It starts with a centre on each of two people, then repeats two moves: give every person to the
+           nearest centre; move each centre to the average of its people. It stops when nothing changes.
+           Scroll, or use the buttons under the figure.</p>
+      </div>
+      <div class="step" data-scene="raw">
+        <span class="tag">3 · k-means in 60 seconds</span>
+        <h3>Run it on metres and kilograms</h3>
+        <p>It stops after {{rawIter}} rounds. Blue and orange are the clusters it found; circle or diamond is the true group. They are mixed up:
+           only {{rawAgree}} of the people match, barely better than a coin. The dividing line is nearly flat, so k-means split people by weight, not by height.</p>
+      </div>
+      <div class="step" data-scene="units">
+        <span class="tag">3 · k-means in 60 seconds</span>
+        <h3>Change the unit, change the answer</h3>
+        <p>Measure height in centimetres instead of metres: same 40 people, but the height gap grows from 0.10 to 10. The clusters change completely: {{cmAgree}} now match.
+           A result that depends on the unit is not a finding about people. (Weight in grams would break it again: {{gAgree}}.)</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 4 ================= -->
+  <section class="chapter" id="ch4">
+    <div class="sticky">
+      <svg id="viz4" role="img" aria-label="The made-up people on equal scales, sliding from raw units to min-max normalized or standardized numbers, then clustered; and the effect of one extreme value on both scalers"></svg>
+      <div class="caption" id="cap4"></div>
+      <div class="controls" id="ctl4">
+        <span class="grp" id="grpScale">
+          <button type="button" data-sc="raw" aria-pressed="false">Raw units</button>
+          <button type="button" data-sc="minmax" aria-pressed="false">Min–max</button>
+          <button type="button" data-sc="zscore" aria-pressed="true">Z-score</button>
+        </span>
+        <span class="grp" id="grpOut" hidden>
+          <button type="button" id="outBtn" aria-pressed="false">Add one extreme person</button>
+        </span>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="minmax">
+        <span class="tag">4 · Scaling fixes it</span>
+        <h3>Normalization: squeeze into 0 to 1</h3>
+        <p>Feature scaling puts features on comparable ranges. <b>Min–max normalization</b> maps each feature's smallest value to 0 and its largest to 1.</p>
+        <span class="formula">\(x'=\dfrac{x-\min}{\max-\min}\)</span>
+        <p class="note">Beware: “normalization” also names other recipes, such as scaling a vector to length 1 (as for cosine similarity). Sources disagree; this page means min–max.</p>
+      </div>
+      <div class="step" data-scene="zscore">
+        <span class="tag">4 · Scaling fixes it</span>
+        <h3>Standardization: how many typical spreads from average</h3>
+        <p><b>Standardization</b> (the z-score) subtracts the average and divides by the standard deviation, the typical spread. A z of +1 means one typical spread above average.</p>
+        <span class="formula">\(z=\dfrac{x-\text{mean}}{\text{std}}\)</span>
+        <p>Either way both features now matter equally, and k-means recovers {{zAgree}} of the true groups.</p>
+      </div>
+      <div class="step" data-scene="compare">
+        <span class="tag">4 · Scaling fixes it</span>
+        <h3>Same people, three versions</h3>
+        <p>Raw units give wrong groups; min–max and z-score give {{mmAgree}} and {{zAgree}}. The star is a new person arriving later:
+           scaled with the minimum, maximum, mean and spread of the original 40, never recomputed from new data, then given to the nearest centre.</p>
+      </div>
+      <div class="step" data-scene="outlier">
+        <span class="tag">4 · Scaling fixes it</span>
+        <h3>One extreme value</h3>
+        <p>A typing slip puts one person at {{outW}} kg. Min–max divides by the range, which that value now controls: everybody else keeps only {{mmKeep}} of their spread.
+           The standard deviation grows too, but less: z-scores keep {{zKeep}}. Neither is immune; robust scalers based on the median exist.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 5 ================= -->
+  <section class="chapter" id="ch5">
+    <div class="sticky">
+      <svg id="viz5" role="img" aria-label="Made-up essays: sentence length against readability rating, a polynomial curve whose degree you choose, fresh test essays, and training and test error against degree"></svg>
+      <div class="caption" id="cap5"></div>
+      <div class="controls" id="ctl5">
+        <label for="deg">Degree <input id="deg" type="range" min="1" max="12" step="1" value="1" aria-label="Polynomial degree: how bendy the curve may be"></label>
+        <span class="out" id="degOut" aria-live="polite"></span>
+        <button type="button" id="degAuto">Follow scroll</button>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="fit">
+        <span class="tag">5 · Generalization</span>
+        <h3>A curve through {{nTrain}} essays</h3>
+        <p>Blue dots are {{nTrain}} made-up essays: average sentence length against a readability rating. We fit a polynomial curve; its <b>degree</b> sets how bendy it may be
+           (1 is a straight line, 12 can wiggle eleven times). Drag the slider: the training error, the average squared miss on these essays, keeps falling.</p>
+      </div>
+      <div class="step" data-scene="fresh">
+        <span class="tag">5 · Generalization</span>
+        <h3>Then fresh essays arrive</h3>
+        <p>What matters is <b>generalization</b>: doing well on new data, not just the data the model learned from. The orange diamonds are {{nTest}} fresh essays the curve has never seen.</p>
+        <div class="predict" data-pick="">
+          <p class="q">Predict: will the degree-12 curve beat the straight line on the fresh essays?</p>
+          <button type="button" data-a="yes">Yes</button><button type="button" data-a="no">No</button>
+          <div class="reveal" hidden><b>No.</b> Degree 12 misses by {{test12}} on average, the line by {{test1}}. The curve memorised the noise in the training essays: <b>overfitting</b>.</div>
+        </div>
+      </div>
+      <div class="step" data-scene="curve">
+        <span class="tag">5 · Generalization</span>
+        <h3>Too simple, too bendy</h3>
+        <p>Training error only ever falls. Test error, measured on essays the model never saw, falls and then climbs: degree {{bestDeg}} is the sweet spot (test error {{testBest}}).
+           Too simple is <b>underfitting</b>; too flexible is <b>overfitting</b>. Slide to see where you are on the two curves.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 6 ================= -->
+  <section class="chapter" id="ch6">
+    <div class="sticky">
+      <svg id="viz6" role="img" aria-label="A degree-12 curve with an L2 penalty you can turn up, the size of its twelve coefficients, and training and test error against the penalty"></svg>
+      <div class="caption" id="cap6"></div>
+      <div class="controls" id="ctl6">
+        <label for="lam2">Penalty λ <input id="lam2" type="range" min="0" max="57" step="1" value="0" aria-label="L2 penalty strength lambda, on a log scale; far left is no penalty"></label>
+        <span class="out" id="lam2Out" aria-live="polite"></span>
+        <button type="button" id="lam2Auto">Follow scroll</button>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="l2">
+        <span class="tag">6 · L2 (ridge)</span>
+        <h3>Make big coefficients expensive</h3>
+        <p>Generalization is the goal; <b>regularization</b> is one tool for it. <b>L2</b> (ridge) adds a penalty to the loss: the squared size of every coefficient, times a price λ.
+           Slide λ up: the curve calms down, the bars shrink, but none ever reaches exactly 0.</p>
+        <span class="formula">\(\text{loss}=\text{average squared miss}+\lambda\sum_j w_j^2\)</span>
+        <p class="note">The w are the model's coefficients, its weights. Degree stays at 12.</p>
+      </div>
+      <div class="step" data-scene="l2curve">
+        <span class="tag">6 · L2 (ridge)</span>
+        <h3>Not too little, not too much</h3>
+        <p>With λ = 0 the curve memorises: {{ridgeT0}} on fresh essays. A modest λ brings that down to {{ridgeBest}}. A huge λ flattens everything into underfitting: {{ridgeEnd}}.
+           In practice you pick λ on separate validation data, not on the final test essays.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 7 ================= -->
+  <section class="chapter" id="ch7">
+    <div class="sticky">
+      <svg id="viz7" role="img" aria-label="A degree-12 curve with an L1 penalty you can turn up and its twelve coefficients, some exactly zero; the coefficient paths under L1 and L2; a two-coefficient picture of circle and diamond"></svg>
+      <div class="caption" id="cap7"></div>
+      <div class="controls" id="ctl7">
+        <span class="grp" id="grpLam1">
+          <label for="lam1">Penalty λ <input id="lam1" type="range" min="0" max="57" step="1" value="0" aria-label="L1 penalty strength lambda, on a log scale; far left is no penalty"></label>
+          <span class="out" id="lam1Out" aria-live="polite"></span>
+          <button type="button" id="lam1Auto">Follow scroll</button>
+        </span>
+        <span class="grp" id="grpToy" hidden>
+          <label for="toyLam">Penalty <input id="toyLam" type="range" min="0" max="40" step="1" value="0" aria-label="Penalty strength in the two-coefficient picture"></label>
+          <span class="out" id="toyOut" aria-live="polite"></span>
+        </span>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="l1">
+        <span class="tag">7 · L1 (lasso)</span>
+        <h3>A penalty with corners</h3>
+        <p><b>L1</b> (lasso) penalizes the sum of the coefficients' absolute sizes instead. Slide λ up: coefficients do not just shrink, they land on <i>exactly</i> 0 and drop out.
+           At the best λ only {{lassoKept}} of the 12 terms remain. Choosing features automatically like this is called feature selection.</p>
+        <span class="formula">\(\text{loss}=\text{average squared miss}+\lambda\sum_j |w_j|\)</span>
+      </div>
+      <div class="step" data-scene="paths">
+        <span class="tag">7 · L1 (lasso)</span>
+        <h3>L1 against L2, side by side</h3>
+        <p>Each line follows one coefficient as λ grows. Under L2 they all slide gently toward 0 and never arrive. Under L1 they hit 0 one by one and stay there:
+           at its best λ, L1 has {{lassoZeros}} exact zeros, L2 has {{ridgeZeros}}.</p>
+      </div>
+      <div class="step" data-scene="corners">
+        <span class="tag">7 · L1 (lasso)</span>
+        <h3>Why corners give zeros <span class="opt">optional</span></h3>
+        <p>Picture just two coefficients. The grey rings join equal loss around the unpenalized best answer; the penalty confines the answer to a region: a circle for L2, a diamond for L1.
+           The first ring to touch the diamond usually touches a corner, where one coefficient is exactly 0. A circle has no corners.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 8 ================= -->
+  <section class="chapter" id="ch8">
+    <div class="sticky">
+      <svg id="viz8" role="img" aria-label="How much of each feature's coefficient survives a ridge penalty when the rare-word share is written as a fraction, as a percent, or standardized"></svg>
+      <div class="caption" id="cap8"></div>
+      <div class="controls" id="ctl8">
+        <label for="lam8">Penalty λ <input id="lam8" type="range" min="0" max="30" step="1" value="14" aria-label="Ridge penalty strength lambda, on a log scale"></label>
+        <span class="out" id="lam8Out" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="units">
+        <span class="tag">8 · Scaling and penalties</span>
+        <h3>Same information, different units</h3>
+        <p>A penalty adds up coefficients, so it cares about units. Take {{nU}} made-up essays and the share of rare words in each, written as a fraction (0 to 0.3) or as a percent (0 to 30): the same facts.
+           As a fraction its coefficient is 100 times bigger, so ridge crushes it: {{fracKept}} survives, against {{pctKept}} as a percent.</p>
+      </div>
+      <div class="step" data-scene="fix">
+        <span class="tag">8 · Scaling and penalties</span>
+        <h3>The fix: standardize first</h3>
+        <p>Standardized, every feature is on the same footing and the penalty treats them alike, in whatever units: {{stdKept}} of both survives.
+           That is why our degree-12 curves used standardized columns: x¹² is astronomically bigger than x. The scaling numbers come from the training essays only.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 9 ================= -->
+  <section class="chapter" id="ch9">
+    <div class="sticky">
+      <svg id="viz9" role="img" aria-label="The route of this page: scale the features, fit, check on new data, add a penalty if it memorises"></svg>
+      <div class="panel" id="pan9"></div>
+      <div class="caption" id="cap9"></div><div class="controls" id="ctl9"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="terms">
+        <span class="tag">9 · Recap</span>
+        <h3>Three words for resizing features</h3>
+        <p>Scaling is the umbrella; normalization (min–max) and standardization (z-score) are two recipes. Learn the numbers on the training data, then apply them to everything else.</p>
+      </div>
+      <div class="step" data-scene="tools">
+        <span class="tag">9 · Recap</span>
+        <h3>A goal and its tools</h3>
+        <p>Generalization is the goal: working on new data. Regularization is one tool for it, in two flavours. L2 shrinks everything, L1 switches some terms off.</p>
+      </div>
+      <div class="step" data-scene="language">
+        <span class="tag">9 · Recap</span>
+        <h3>Where you will meet this</h3>
+        <p>In language technology these ideas hide inside document vectors, clustering, and every text classifier you train.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p><b>Fair Scales, Honest Models: a visual introduction to feature scaling, generalization, and L1 and L2 regularization.</b>
+     Part of the <i>Introduction to ML for Language Technologies</i> course materials. Inspired by
+     <a href="https://www.r2d3.us/visual-intro-to-machine-learning-part-1/">R2D3: A Visual Introduction to Machine Learning</a>.</p>
+  <p>All data on this page is made up: the {{n}} people and {{nTrain}} + {{nTest}} essays (and the {{nU}} essays of chapter 8) come from a seeded random generator in
+     <code>sg-math.js</code>, so they never change. Every cluster, fit and number is computed in your browser by that file
+     (unit-tested by <code>sg-math.test.js</code>). The page works offline; open the file directly.</p>
+</footer>
+
+<script src="../vendor/katex/katex.min.js"></script>
+<script src="../vendor/katex/auto-render.min.js" onerror="this.onerror=null"></script>
+<script src="sg-math.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
