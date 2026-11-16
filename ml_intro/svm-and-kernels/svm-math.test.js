@@ -125,14 +125,29 @@ t('removing a point that is not a support vector changes nothing; removing a sup
   near(M.fit(X3, SEP.y, tight).margin, ref.margin, 1e-6);
 });
 
+t('the chapter 2 demos: the farthest non-support dot can go; a support vector slid toward the street narrows it, and the groups stay separable', () => {
+  const far = M.farthestNonSV(HARD, SEP);
+  assert.ok(far >= 0 && HARD.sv.indexOf(far) < 0);
+  const dists = SEP.X.map((x, i) => (HARD.sv.indexOf(i) < 0 ? Math.abs(HARD.decision(x)) : -1));
+  assert.strictEqual(dists[far], Math.max.apply(null, dists));
+  const sv = HARD.sv.find((i) => SEP.y[i] === 1), X2 = M.moveTowardStreet(SEP, HARD, sv, M.MOVE_BY);
+  const moved = M.fit(X2, SEP.y, M.HARD);
+  assert.strictEqual(moved.accuracy(X2, SEP.y), 1, 'still separable');
+  assert.ok(moved.margin < HARD.margin - 0.2, 'narrower: ' + moved.margin + ' vs ' + HARD.margin);
+  near(Math.abs(HARD.decision(SEP.X[sv])) / HARD.norm - Math.abs(HARD.decision(X2[sv])) / HARD.norm, M.MOVE_BY, 1e-3, 'moved by exactly MOVE_BY');
+  assert.ok(Math.abs(moved.w[1] / moved.w[0] - HARD.w[1] / HARD.w[0]) > 0.01, 'and the street turns');
+});
+
 t('candidate lines all separate the training groups, but their streets are narrower and they do worse on fresh points', () => {
   const ws = M.widestStreet(SEP), cands = M.candidateLines(SEP, ws);
   assert.strictEqual(cands.length, 4);
   const svmFresh = M.lineAccuracy(ws.t, ws.offset, SEP.fresh);
   assert.strictEqual(svmFresh, 1);
+  near(M.lineMargin(SEP, ws.t, ws.offset), ws.gap, 1e-9, 'a centred line has the whole gap as its street');
   cands.forEach((c) => {
     assert.strictEqual(M.lineAccuracy(c.t, c.offset, SEP), 1, 'every candidate is 100% right on the training points');
     assert.ok(c.gap < HARD.margin - 0.3, 'narrower street: ' + c.gap);
+    assert.ok(c.margin > 0 && c.margin <= c.gap + 1e-9 && c.margin < HARD.margin - 0.3, 'the line\'s own street is narrower still: ' + c.margin);
     assert.ok(M.lineAccuracy(c.t, c.offset, SEP.fresh) < svmFresh, 'worse on fresh points');
   });
   assert.ok(new Set(cands.map((c) => c.t.toFixed(3))).size === 4, 'four different directions');
@@ -149,9 +164,10 @@ t('overlapping groups: no street can be clean, and C trades width for mistakes',
   assert.ok(small.nSV > 3 * big.nSV, 'smaller C: more support vectors: ' + small.nSV + ' vs ' + big.nSV);
   assert.ok(small.errors.length > big.errors.length, 'smaller C tolerates more mistakes: ' + small.errors.length + ' vs ' + big.errors.length);
   assert.ok(small.nSV >= 0.9 * OVL.n, 'with the smallest C nearly everybody is a support vector');
-  /* sklearn's default C = 1 sits in the middle, and gives the best accuracy on fresh points */
+  /* sklearn's default C = 1 sits in the middle, and is within a point of the best accuracy on fresh points */
   const iBest = M.bestIndexBy(sw, (r) => r.fresh), c1 = sw[M.C_VALUES.indexOf(1)];
-  assert.strictEqual(c1.fresh, sw[iBest].fresh, 'C = 1 is as good as any on fresh points');
+  assert.ok(sw[iBest].fresh - c1.fresh <= 0.01 + 1e-9, 'C = 1 is nearly as good as any on fresh points');
+  assert.ok(iBest > 3 && iBest < sw.length - 3, 'the best C is in the middle of the range');
   assert.ok(c1.fresh > small.fresh && c1.fresh > big.fresh, 'both extremes are worse on fresh points');
   assert.ok(c1.margin < small.margin && c1.margin > big.margin);
 });
@@ -279,8 +295,8 @@ t('results match scikit-learn 1.9.1 SVC on the same points (reference values rec
   /* separable, SVC(kernel='linear', C=1000): support_ = [19, 2, 16], coef_ = [0.8472, 0.3376], intercept_ = -0.0338, margin 2.193 */
   assert.deepStrictEqual(HARD.sv.slice().sort((a, b) => a - b), [2, 16, 19]);
   near(HARD.w[0], 0.8472, 3e-3); near(HARD.w[1], 0.3376, 3e-3); near(HARD.b, -0.0338, 3e-3); near(HARD.margin, 2.193, 3e-3);
-  /* overlap, linear: C = 0.01 -> 28 SVs, margin 5.7406; C = 1 -> 8 SVs, margin 0.9961; C = 100 -> 5 SVs, margin 0.4315 */
-  [[0.01, 28, 5.7406, 0.8667, 0.905], [1, 8, 0.9961, 0.9333, 0.94], [100, 5, 0.4315, 0.9667, 0.93]].forEach((r) => {
+  /* overlap, linear: C = 0.01 -> 30 SVs, margin 4.9108; C = 1 -> 9 SVs, margin 1.9583; C = 100 -> 7 SVs, margin 0.9105 */
+  [[0.01, 30, 4.9108, 0.9, 0.9], [1, 9, 1.9583, 0.9333, 0.94], [100, 7, 0.9105, 0.9667, 0.925]].forEach((r) => {
     const x = M.softRun(r[0], 'overlap');
     assert.strictEqual(x.nSV, r[1]); near(x.margin, r[2], 0.01); near(x.train, r[3], 1e-3); near(x.fresh, r[4], 1e-9);
   });

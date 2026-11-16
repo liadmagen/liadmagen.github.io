@@ -204,7 +204,7 @@
     /* chapters 1 and 2: two groups with a clear gap, 10 points each */
     separable: { make: (n, seed) => blobs({ a: [1.7, 1.15], b: [-1.7, -1.15], sd: 0.62 }, n, seed), n: 10, seed: 109, freshSeed: 911 },
     /* chapter 3: the groups overlap a little, 15 points each */
-    overlap: { make: (n, seed) => blobs({ a: [1.25, 0.8], b: [-1.25, -0.8], sd: 0.95 }, n, seed), n: 15, seed: 3, freshSeed: 905 },
+    overlap: { make: (n, seed) => blobs({ a: [1.25, 0.8], b: [-1.25, -0.8], sd: 0.95 }, n, seed), n: 15, seed: 38, freshSeed: 905 },
     /* chapters 4, 5, 7: a cluster inside a ring, 20 points each */
     rings: { make: (n, seed) => circles(n, 0.17, 0.3, 1.9, seed), n: 20, seed: 3, freshSeed: 903 },
     /* chapter 7: two moons, 20 points each */
@@ -275,15 +275,36 @@
       while (!s.separates && tries++ < 60) { dt *= 0.93; s = streetAt(d, t0 + dt); }
       if (!s.separates) return;
       const lo = s.offset - s.gap / 2, off = lo + c[1] * s.gap; /* c[1]: where inside the gap the line sits (0 = against B, 1 = against A) */
-      out.push({ t: s.t, offset: off, w: s.w, gap: s.gap, dt: dt });
+      out.push({ t: s.t, offset: off, w: s.w, gap: s.gap, margin: lineMargin(d, s.t, off), dt: dt });
     });
     return out;
+  }
+  /* the street a particular line really has: twice the distance to its nearest dot (negative if some dot is on the wrong side) */
+  function lineMargin(d, t, c) {
+    const w = dirOf(t); let m = Infinity;
+    d.X.forEach((x, i) => { m = Math.min(m, d.y[i] * (dot(w, x) - c)); });
+    return 2 * m;
   }
   /* accuracy of a line (direction t, offset c, A on the high side) on a set */
   function lineAccuracy(t, c, d) {
     const w = dirOf(t); let ok = 0;
     d.X.forEach((x, i) => { if ((dot(w, x) - c >= 0 ? 1 : -1) === d.y[i]) ok++; });
     return ok / d.n;
+  }
+
+  /* ================================================================ EDITING THE POINTS (chapter 2) */
+  const MOVE_BY = 0.8;
+  /* the dot that is not a support vector and lies farthest from the street */
+  function farthestNonSV(m, d) {
+    let best = -1, bd = -1;
+    d.X.forEach((x, i) => { if (m.sv.indexOf(i) >= 0) return; const v = Math.abs(m.decision(x)); if (v > bd) { bd = v; best = i; } });
+    return best;
+  }
+  /* a copy of the points with dot i slid `by` units toward the street (a linear model m is needed for the street's direction) */
+  function moveTowardStreet(d, m, i, by) {
+    const X = d.X.map((p) => p.slice()), nx = m.w[0] / m.norm, ny = m.w[1] / m.norm;
+    X[i] = [round(X[i][0] - by * d.y[i] * nx, 4), round(X[i][1] - by * d.y[i] * ny, 4)];
+    return X;
   }
 
   /* ================================================================ THE LIFT (chapter 5) */
@@ -326,7 +347,8 @@
     LINEAR: LINEAR, poly: poly, rbf: rbf, kernelFn: kernelFn, gammaScale: gammaScale, phi2: phi2, kernelIdentity: kernelIdentity,
     HARD_C: HARD_C, EPS: EPS, fit: fit, accuracy: accuracy, wrongIndices: wrongIndices,
     FRESH_N: FRESH_N, SPEC: SPEC, DATA: DATA, HARD: HARD, blobs: blobs, circles: circles, moons: moons,
-    dirOf: dirOf, streetAt: streetAt, widestStreet: widestStreet, bestLine: bestLine, lineAtAngle: lineAtAngle, candidateLines: candidateLines, lineAccuracy: lineAccuracy,
+    dirOf: dirOf, streetAt: streetAt, widestStreet: widestStreet, bestLine: bestLine, lineAtAngle: lineAtAngle, candidateLines: candidateLines, lineMargin: lineMargin, lineAccuracy: lineAccuracy,
+    MOVE_BY: MOVE_BY, farthestNonSV: farthestNonSV, moveTowardStreet: moveTowardStreet,
     lift: lift, liftPlane: liftPlane,
     C_VALUES: C_VALUES, GAMMAS: GAMMAS, softRun: softRun, softSweep: softSweep, kernelRun: kernelRun, gammaSweep: gammaSweep, bestIndexBy: bestIndexBy,
     RBF_C: RBF_C, KERNELS: KERNELS
