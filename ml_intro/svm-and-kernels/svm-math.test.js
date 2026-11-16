@@ -312,6 +312,37 @@ t('results match scikit-learn 1.9.1 SVC on the same points (reference values rec
   assert.strictEqual(tiny.nSV, 20); near(tiny.train, 0.85, 1e-9); near(tiny.fresh, 0.825, 1e-9);
 });
 
+/* ------------------------------------------------------------------ the page and the module agree */
+t('every {{placeholder}} in index.html is filled by app.js; the only external links are the scikit-learn guide and the R2D3 credit; no notebooks; KaTeX is local', () => {
+  const fs = require('fs'), path = require('path');
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8'), app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const used = Array.from(new Set((html.match(/\{\{[^}]+\}\}/g) || []).map((m) => m.slice(2, -2).trim().split(/\s+/)[0])));
+  assert.ok(used.length >= 25, 'prose is driven by placeholders: ' + used.length);
+  used.forEach((k) => assert.ok(app.indexOf("case '" + k + "'") >= 0, 'app.js has no case for {{' + k + '}}'));
+  const links = Array.from(new Set((html.match(/https?:\/\/[^"' )<]+/g) || []).filter((u) => !/w3\.org/.test(u))));
+  assert.deepStrictEqual(links.sort(), ['https://scikit-learn.org/stable/modules/svm.html', 'https://www.r2d3.us/visual-intro-to-machine-learning-part-1/']);
+  assert.ok(!/colab|\.ipynb|notebook/i.test(html), 'no links to notebooks');
+  assert.ok(/\.\.\/vendor\/katex\/katex\.min\.js/.test(html), 'KaTeX is loaded locally');
+  assert.ok(html.indexOf("Inspired by the classic 'polynomial kernel' 3-D animation of SVMs") >= 0, 'footer credit, as agreed');
+  assert.ok(!/<video|<iframe|youtube|linkedin/i.test(html), 'no embedded external video');
+  assert.ok(/made up|made-up/.test(html));
+});
+
+t('chapter 8 snippets: every snippet has code and a real output block, the version is named, and the page says what version produced them', () => {
+  const fs = require('fs'), path = require('path');
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const blocks = html.match(/<div class="snip" data-snip="\d"/g) || [];
+  assert.strictEqual(blocks.length, 5);
+  assert.strictEqual((html.match(/<pre class="out"/g) || []).length, 5);
+  assert.ok(/scikit-learn 1\.9\.1/.test(html));
+  /* the first snippet's points are exactly the page's separable dots, so its support vectors are the ones the page draws */
+  const m = html.match(/X = np\.array\(\[([\s\S]*?)\]\)/)[1].match(/\[\s*(-?[\d.]+),\s*(-?[\d.]+)\s*\]/g).map((s) => s.match(/-?[\d.]+/g).map(Number));
+  assert.deepStrictEqual(m, SEP.X);
+  assert.ok(html.indexOf('[19  2 16]') >= 0, 'the printed support rows are 19, 2 and 16');
+  assert.deepStrictEqual(HARD.sv.slice().sort((a, b) => a - b), [2, 16, 19]);
+});
+
+
 /* ------------------------------------------------------------------ determinism */
 t('everything is deterministic', () => {
   const a = M.fit(OVL.X, OVL.y, { kernel: M.rbf(2), C: 3 }), b = M.fit(OVL.X, OVL.y, { kernel: M.rbf(2), C: 3 });
