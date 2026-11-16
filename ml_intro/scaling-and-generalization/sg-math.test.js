@@ -353,6 +353,19 @@ t('toy problem: the L1 solution lands exactly on an axis, the L2 solution never 
   }
 });
 
+/* ------------------------------------------------------------------ the page and the module agree */
+t('every {{placeholder}} in index.html is filled by app.js, and the page links nothing external except the R2D3 credit', () => {
+  const fs = require('fs'), path = require('path');
+  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8'), app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+  const used = Array.from(new Set((html.match(/\{\{[^}]+\}\}/g) || []).map((m) => m.slice(2, -2).trim().split(/\s+/)[0])));
+  assert.ok(used.length >= 25, 'prose is driven by placeholders: ' + used.length);
+  used.forEach((k) => assert.ok(app.indexOf("case '" + k + "'") >= 0, 'app.js has no case for {{' + k + '}}'));
+  const links = (html.match(/https?:\/\/[^"' )]+/g) || []).filter((u) => !/w3\.org/.test(u));
+  assert.deepStrictEqual(links, ['https://www.r2d3.us/visual-intro-to-machine-learning-part-1/']);
+  assert.ok(!/colab|\.ipynb|notebook/i.test(html), 'no links to notebooks');
+  assert.ok(/\.\.\/vendor\/katex\/katex\.min\.js/.test(html), 'KaTeX is loaded locally');
+});
+
 /* ------------------------------------------------------------------ determinism */
 t('everything is deterministic', () => {
   assert.deepStrictEqual(SGM.runPeople('zscore').assign, Z.assign);
