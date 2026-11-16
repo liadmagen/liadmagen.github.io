@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Widest Street — Support Vector Machines and the Kernel Trick</title>
+<meta name="description" content="A scroll-driven visual introduction to support vector machines for language students: find the widest street between two groups, see why only a few dots matter, and lift a cluster inside a ring into a third dimension where a flat sheet separates it. With real scikit-learn code.">
+<link rel="stylesheet" href="../vendor/katex/katex.min.css">
+<style>
+  :root{
+    --ink:#1d2733; --muted:#55636f; --bg:#faf9f6; --card:#ffffff;
+    /* one meaning per colour. Blue circles = group A, orange diamonds = group B. Teal = the best (the widest street, the
+       separating sheet), dark = the model's own line, purple = what you control or pick, red = a mistake, grey = other candidates. */
+    --blue:#1f6fd1; --blue-soft:#dbe8fa; --orange:#d9730d; --orange-soft:#fbe6d0;
+    --grey:#7d8894; --teal:#0f8a8a; --teal-soft:#d6eded; --line:#e5e1d8; --accent:#6d5bd0; --red:#b3261e;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;font-size:17px;overflow-x:hidden}
+  h1,h2,h3{line-height:1.2}
+  a{color:var(--blue)}
+  .katex{font-size:1.05em}
+  code{font-family:var(--mono);font-size:.88em;background:#f1eee6;border-radius:4px;padding:.05em .3em}
+
+  /* ---------- hero ---------- */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;
+    text-align:center;padding:3rem 1.2rem;background:
+    radial-gradient(1200px 500px at 20% -10%, #e8efff 0%, transparent 60%),
+    radial-gradient(1000px 500px at 85% 110%, #fdeeda 0%, transparent 55%), var(--bg);}
+  .hero .kicker{letter-spacing:.2em;text-transform:uppercase;font-size:.78rem;color:var(--accent);font-weight:700}
+  .hero h1{font-size:clamp(2.1rem,6vw,3.9rem);margin:.6rem 0 .6rem;max-width:18ch}
+  .hero .lead{max-width:60ch;color:var(--muted);font-size:1.12rem;margin:.3rem 0}
+  .two{display:grid;grid-template-columns:1fr auto 1fr;gap:.4rem .9rem;align-items:center;margin:1.6rem 0 1rem;text-align:left;
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:1rem 1.3rem;
+    box-shadow:0 10px 30px rgba(30,40,60,.07);font-size:1rem;max-width:700px;width:100%}
+  .two .arrow{color:var(--muted);font-weight:700}
+  .two .ans{font-weight:700;border-radius:10px;padding:.25rem .7rem;border:2px solid;display:inline-block}
+  .two .ans.n{background:var(--blue-soft);border-color:var(--blue);color:#154f98}
+  .two .ans.y{background:var(--orange-soft);border-color:var(--orange);color:#8a4a07}
+  .two .tagline{grid-column:1/-1;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:.3rem}
+  .hero .uses{max-width:60ch;font-size:.95rem;color:var(--muted);margin-top:.8rem}
+  .scroll-hint{margin-top:2.2rem;color:var(--muted);font-size:.85rem;animation:bob 1.8s ease-in-out infinite}
+  .scroll-hint .arrow{display:block;font-size:1.4rem}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
+
+  /* ---------- progress nav ---------- */
+  #dotnav{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:12px}
+  #dotnav a{width:12px;height:12px;border-radius:50%;background:#cfc9bc;display:block;position:relative;transition:background .3s,transform .3s}
+  #dotnav a.on{background:var(--accent);transform:scale(1.35)}
+  #dotnav a span{position:absolute;right:20px;top:50%;transform:translateY(-50%);white-space:nowrap;
+    background:var(--ink);color:#fff;font-size:.72rem;padding:.15rem .55rem;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s}
+  #dotnav a:hover span,#dotnav a:focus span{opacity:1}
+
+  /* ---------- scrolly layout ---------- */
+  .chapter{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:1.5rem;
+    padding:0 clamp(.5rem,3vw,3rem);align-items:start}
+  .chapter + .chapter{margin-top:10vh}
+  .sticky{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
+    justify-content:center;align-items:center;gap:.4rem;padding:.6rem 0;min-width:0}
+  .sticky svg{width:100%;max-width:720px;height:auto;max-height:calc(100vh - 190px);background:var(--card);
+    border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(30,40,60,.07)}
+  .sticky svg{flex:0 0 auto}
+  .sticky svg.drag{touch-action:pan-y;cursor:grab}
+  .sticky svg.drag:active{cursor:grabbing}
+  .sticky .caption{font-size:.92rem;color:var(--muted);text-align:center;min-height:3em;max-width:720px;line-height:1.45}
+  .sticky .caption b{color:var(--ink)}
+  .controls{display:none;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;justify-content:center;max-width:720px;font-size:.9rem}
+  .controls.on{display:flex}
+  .controls .grp{display:flex;flex-wrap:wrap;gap:.5rem .9rem;align-items:center;justify-content:center}
+  .controls .grp[hidden]{display:none}
+  .controls .off,.controls.off{opacity:.45}
+  .controls button:disabled,.controls input:disabled,.controls select:disabled{cursor:not-allowed}
+  .controls label{display:flex;align-items:center;gap:.4rem;color:var(--muted)}
+  .controls select,.controls button{font:inherit;font-size:.9rem;padding:.25rem .55rem;border-radius:8px;
+    border:1px solid #c9c3b6;background:#fff;color:var(--ink)}
+  .controls button{cursor:pointer;background:#f4f2ec}
+  .controls button:hover:not(:disabled){background:#ece8dd}
+  .controls button[aria-pressed=true],.controls button[aria-pressed=true]:hover:not(:disabled){background:var(--accent);color:#fff;border-color:var(--accent)}
+  .controls input[type=range]{width:min(210px,36vw);accent-color:var(--accent)}
+  .controls .out{font-family:var(--mono);color:var(--ink);min-width:8ch}
+  .controls .pad{display:inline-flex;gap:.3rem}
+  .controls .pad button{min-width:2.1rem}
+  :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  svg:focus-visible{outline-offset:-3px}
+  .steps{display:flex;flex-direction:column;gap:55vh;padding:52vh 0 55vh} /* the figure pins before the first step becomes active */
+  .steps.tall{padding-bottom:150vh} /* the figure stays pinned while a control below it is brought into view */
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:1.2rem 1.35rem;box-shadow:0 6px 18px rgba(30,40,60,.06);
+    opacity:.25;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease}
+  .step.active{opacity:1;transform:none}
+  .step h3{margin:.1rem 0 .5rem;font-size:1.22rem}
+  .step p{margin:.45rem 0;color:#33404f}
+  .step .tag{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--accent);background:#efecfb;border-radius:6px;padding:.12rem .5rem;margin-bottom:.4rem}
+  .step .opt{color:#7a4a00;background:#fdf0d8;border-radius:6px;padding:.1rem .45rem;font-size:.72rem;font-weight:700;margin-left:.3rem;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+  .formula{display:block;background:#f4f2ec;border:1px solid var(--line);border-radius:10px;
+    padding:.5rem .8rem;margin:.55rem 0;overflow-x:auto;text-align:center}
+  .formula .katex{font-size:1em}
+  .note{font-size:.88rem;color:var(--muted)}
+  .legend-b,.legend-o,.legend-t{white-space:nowrap;font-weight:700}
+  .legend-b{color:#154f98} .legend-o{color:#8a4a07} .legend-t{color:#0b6b6b}
+  .predict{border:2px dashed #cfc7f0;background:#f8f6ff;border-radius:12px;padding:.6rem .9rem;margin:.6rem 0}
+  .predict .q{font-weight:600;margin:0 0 .4rem}
+  .predict button{font:inherit;font-size:.9rem;padding:.25rem .8rem;margin:0 .4rem .3rem 0;border-radius:8px;border:1px solid #b9aeea;background:#fff;cursor:pointer}
+  .predict button:hover{background:#efecfb}
+  .predict button.picked{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .predict .reveal{margin-top:.5rem;padding-top:.5rem;border-top:1px solid #dcd6f5}
+  .predict .reveal[hidden]{display:none}
+  svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  foreignObject{overflow:visible}
+  #tip{position:fixed;z-index:100;pointer-events:none;background:var(--ink);color:#fff;font-size:.82rem;line-height:1.4;
+    padding:.4rem .6rem;border-radius:8px;max-width:240px;opacity:0;transition:opacity .12s}
+  #tip.on{opacity:1}
+  .hit{cursor:pointer}
+
+  /* code panel (chapter 8): the code scrolls inside its own box, never the page */
+  .panel{width:100%;max-width:720px;min-width:0}
+  .snip[hidden]{display:none}
+  .snip .head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.3rem}
+  .snip .head b{font-size:.95rem}
+  .snip .copy{font:inherit;font-size:.8rem;padding:.15rem .6rem;border-radius:8px;border:1px solid #c9c3b6;background:#f4f2ec;color:var(--ink);cursor:pointer;white-space:nowrap}
+  .snip .copy:hover{background:#ece8dd}
+  .snip pre{margin:0;overflow:auto;font-family:var(--mono);font-size:.78rem;line-height:1.45;tab-size:4;
+    background:#f7f5ef;border:1px solid var(--line);border-radius:10px;padding:.55rem .7rem;color:#26313d;white-space:pre;max-width:100%}
+  #pan8{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+  #pan8 .snip{display:flex;flex-direction:column;min-height:0;flex:1 1 auto}
+  #pan8 .snip[hidden]{display:none}
+  .snip pre.code{flex:1 1 auto;min-height:5rem}
+  .snip pre.out{flex:0 0 auto;max-height:7.6rem;background:#eef4f4;border-color:#cfe0e0;margin-top:.35rem}
+  .snip .outlabel{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:.4rem 0 .15rem}
+  .panel .ver{font-size:.76rem;color:var(--muted);margin:.3rem 0 0}
+  .code-note{font-size:.8rem;color:var(--muted);text-align:center;max-width:720px;margin:0}
+
+  /* recap cards: plain HTML in normal flow, so text can never overlap */
+  .rgroup{display:flex;flex-direction:column;gap:.55rem}
+  .rgroup[hidden]{display:none}
+  .rcard{display:flex;gap:.8rem;align-items:center;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:.5rem .9rem}
+  .rcard .badge{flex:none;width:2.1rem;height:2.1rem;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .rcard.good{border-color:var(--teal)} .rcard.good .badge{background:var(--teal)}
+  .rcard.warn{border-color:var(--orange)} .rcard.warn .badge{background:var(--orange)}
+  .rcard .rtxt{flex:1;min-width:0}
+  .rcard .rtxt>b{display:block;font-size:1.02rem}
+  .rcard .rform{margin-top:.1rem;overflow-x:auto;overflow-y:hidden}
+  .rcard .rform .katex{font-size:1.05em}
+  .rcard .rsub{color:var(--muted);font-size:.93rem;line-height:1.4}
+
+  footer{border-top:1px solid var(--line);margin-top:8vh;padding:3rem 1.2rem 4rem;
+    text-align:center;color:var(--muted);font-size:.9rem}
+  footer p{max-width:72ch;margin:.5rem auto}
+
+  /* a control inside the pinned figure is already on screen: tell scrollIntoView so, instead of letting it drag the page down a screen at a time */
+  @media (min-width:921px){.sticky .controls button,.sticky .controls input{scroll-margin-top:80vh}}
+
+  @media (prefers-reduced-motion:reduce){.step{transition:none}html{scroll-behavior:auto}.scroll-hint{animation:none}}
+
+  @media (max-width:920px){
+    body{font-size:16px}
+    .chapter{grid-template-columns:minmax(0,1fr)}
+    /* The figure is pinned in the top half of the screen; a step becomes active when its top
+       reaches 66% of the viewport height (see app.js), so the active box sits fully below the figure. */
+    .sticky{top:0;height:54vh;z-index:5;padding:.25rem 0;background:var(--bg);gap:.2rem;justify-content:flex-start}
+    .sticky svg{max-height:calc(54vh - 112px)}
+    .sticky .caption{font-size:.78rem;min-height:2.6em;line-height:1.3;padding:0 .5rem}
+    .controls{gap:.25rem .6rem;font-size:.82rem}
+    .controls .grp{gap:.25rem .6rem}
+    .controls button{padding:.2rem .5rem;font-size:.82rem}
+    .controls input[type=range]{width:34vw}
+    .controls .out{display:none}
+    .caption .lg{display:none}
+    .step,.predict,.predict button,.step .controls button,.step .controls input{scroll-margin-top:60vh}
+    .steps,.steps.tall{padding:58vh 0 40vh;gap:34vh}
+    .steps.tall{padding-bottom:70vh}
+    .formula{padding:.4rem .5rem}.formula .katex{font-size:.92em}
+    .two{grid-template-columns:1fr;text-align:center}.two .arrow{transform:rotate(90deg)}
+    .rcard{padding:.25rem .55rem;gap:.5rem}.rgroup{gap:.3rem}
+    .rcard .badge{width:1.6rem;height:1.6rem;font-size:.85rem}
+    .rcard .rtxt>b{font-size:.92rem}.rcard .rsub{font-size:.8rem;line-height:1.25}
+    .snip pre{font-size:.66rem;padding:.35rem .5rem}
+    .snip pre.code{min-height:4rem}
+    .snip pre.out{max-height:4.7rem}
+    .snip .outlabel{display:none}
+    .panel .ver,.code-note{display:none}
+    .snip .head b{font-size:.8rem}
+    #dotnav{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="kicker">Introduction to ML for Language Technologies</div>
+  <h1>The Widest Street</h1>
+  <p class="lead">Draw the widest street between two groups, and when no street fits, lift the data.</p>
+  <div class="two" aria-label="Two questions this page answers">
+    <span>Many straight lines split two groups. Which one is best?</span><span class="arrow">→</span><span class="ans n">the widest street (the margin)</span>
+    <span>What if no straight line can split them at all?</span><span class="arrow">→</span><span class="ans y">lift the data (the kernel trick)</span>
+    <span class="tagline">support vector machines in nine short chapters</span>
+  </div>
+  <p class="lead">You will see why only a few dots matter, how a softer street copes with messy data, and how a cluster inside a ring
+     becomes separable once it is lifted into a third dimension. At the end, the scikit-learn code.</p>
+  <p class="uses">All data on this page is made up: {{nSep}}, {{nOvl}}, {{nRing}} and {{nMoon}} invented dots in four small sets, so that every dot is visible,
+     plus {{nFresh}} fresh dots for each set. The ideas are the ones behind many text classifiers.</p>
+  <div class="scroll-hint">scroll to begin<span class="arrow">↓</span></div>
+</header>
+
+<nav id="dotnav" aria-label="Chapters"></nav>
+<div id="tip" role="status"></div>
+
+<main>
+
+  <!-- ================= Chapter 1 ================= -->
+  <section class="chapter" id="ch1">
+    <div class="sticky">
+      <svg id="viz1" class="drag" role="img" aria-label="Scatter plot of made-up dots in two groups, A as blue circles and B as orange diamonds, with five straight lines that all separate them, then the street around each line, then a line you can tilt with a curve of the street width"></svg>
+      <div class="caption" id="cap1"></div>
+      <div class="controls" id="ctl1">
+        <span class="grp" id="grp1a">
+          <button type="button" data-line="0" aria-pressed="false">Line a</button>
+          <button type="button" data-line="1" aria-pressed="false">Line b</button>
+          <button type="button" data-line="2" aria-pressed="false">Line c</button>
+          <button type="button" data-line="3" aria-pressed="false">Line d</button>
+          <button type="button" data-line="4" aria-pressed="false">Line e</button>
+        </span>
+        <span class="grp" id="grp1b" hidden>
+          <label for="tilt1">Tilt <input id="tilt1" type="range" min="-70" max="70" step="1" value="0" aria-label="Tilt of the line, in degrees away from the widest street"></label>
+          <span class="out" id="tilt1Out" aria-live="polite"></span>
+          <button type="button" id="snap1">Snap to widest</button>
+          <button type="button" id="auto1">Follow scroll</button>
+        </span>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="lines">
+        <span class="tag">1 · Many lines</span>
+        <h3>Many lines, all correct</h3>
+        <p>Each dot is a made-up document described by two numbers. Group A (circles) and group B (diamonds) can be split by a straight line, and not by just one:
+           these five lines each get all {{nSep}} dots right. A model that learns from examples has to choose.</p>
+      </div>
+      <div class="step" data-scene="trust">
+        <span class="tag">1 · Many lines</span>
+        <h3>Which one would you trust?</h3>
+        <p>New dots will arrive, some close to the gap between the groups. The shaded strip around each line is its empty “street”.</p>
+        <div class="predict" data-pick="">
+          <p class="q">Predict: which line will make the fewest mistakes on fresh dots?</p>
+          <button type="button" data-a="a">a</button><button type="button" data-a="b">b</button><button type="button" data-a="c">c</button><button type="button" data-a="d">d</button><button type="button" data-a="e">e</button>
+          <div class="reveal" hidden><b>Line {{widestLetter}}.</b> Its street is the widest, {{sepMargin}}. On {{nFresh}} fresh dots it is right {{svmFresh}}; the others {{candMin}} to {{candMax}}.</div>
+        </div>
+      </div>
+      <div class="step" data-scene="street">
+        <span class="tag">1 · Many lines</span>
+        <h3>The widest street</h3>
+        <p>A support vector machine (SVM) picks the line with the widest empty street around it, the <b>margin</b>. Tilt the line: drag the figure or use the slider.
+           The curve shows the street width at every tilt. It peaks at {{sepMargin}}, and some tilts cannot separate the groups at all.</p>
+        <span class="formula">\(\text{street width}=\dfrac{2}{\lVert w\rVert}\)</span>
+        <p class="note">Here w is an arrow across the street: the longer it is, the narrower the street.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 2 ================= -->
+  <section class="chapter" id="ch2">
+    <div class="sticky">
+      <svg id="viz2" class="drag" tabindex="0" role="application" aria-label="The widest street between groups A and B with the support vectors ringed. In the last step you can select a dot and move it with the arrow keys, or remove it, and watch the street refit"></svg>
+      <div class="caption" id="cap2"></div>
+      <div class="controls" id="ctl2">
+        <span class="grp">
+          <button type="button" id="prev2" aria-label="Select the previous dot">◀ Dot</button>
+          <button type="button" id="next2" aria-label="Select the next dot">Dot ▶</button>
+          <span class="out" id="sel2" aria-live="polite"></span>
+        </span>
+        <span class="grp">
+          <span class="pad" role="group" aria-label="Move the selected dot">
+            <button type="button" id="mvL2" aria-label="Move the selected dot left">←</button>
+            <button type="button" id="mvU2" aria-label="Move the selected dot up">↑</button>
+            <button type="button" id="mvD2" aria-label="Move the selected dot down">↓</button>
+            <button type="button" id="mvR2" aria-label="Move the selected dot right">→</button>
+          </span>
+          <button type="button" id="rm2">Remove dot</button>
+          <button type="button" id="reset2">Reset</button>
+        </span>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="who">
+        <span class="tag">2 · Support vectors</span>
+        <h3>Only a few dots hold the street</h3>
+        <p>The dots that touch the edges of the street are the <b>support vectors</b> (ringed). Here {{sepNSV}} of {{nSep}} dots are support vectors.
+           Every other dot could sit anywhere further out, and the street would not change.</p>
+      </div>
+      <div class="step" data-scene="remove">
+        <span class="tag">2 · Support vectors</span>
+        <h3>Remove a far-away dot</h3>
+        <p>Scroll to take away the dot farthest from the street. Nothing happens: the street is {{sepMargin}} wide before and {{farMargin}} after.
+           The same holds for each of the other {{nFar}} dots that are not support vectors.</p>
+      </div>
+      <div class="step" data-scene="move">
+        <span class="tag">2 · Support vectors</span>
+        <h3>Move a support vector</h3>
+        <p>Now slide one support vector {{moveBy}} units toward the street. The street has to follow: it narrows from {{sepMargin}} to {{movedMargin}} and turns a little.
+           The dashed grey street is the old one.</p>
+      </div>
+      <div class="step" data-scene="try">
+        <span class="tag">2 · Support vectors</span>
+        <h3>Your turn</h3>
+        <p>Pick a dot, move it, remove it, and watch the street refit. Far-away dots do nothing; support vectors change everything.
+           scikit-learn keeps exactly these dots in <code>support_vectors_</code>.</p>
+        <p class="note">Keyboard: Tab to the figure, then use the arrow keys to move the selected dot.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 3 ================= -->
+  <section class="chapter" id="ch3">
+    <div class="sticky">
+      <svg id="viz3" role="img" aria-label="Two overlapping made-up groups with a street whose width depends on the penalty C you choose, then a chart of training and fresh accuracy against C"></svg>
+      <div class="caption" id="cap3"></div>
+      <div class="controls" id="ctl3">
+        <label for="c3">C <input id="c3" type="range" min="0" max="16" step="1" value="12" aria-label="C, the price of a mistake, on a log scale from 0.01 to 100"></label>
+        <span class="out" id="c3Out" aria-live="polite"></span>
+        <button type="button" id="auto3">Follow scroll</button>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="overlap">
+        <span class="tag">3 · Soft margin</span>
+        <h3>When the groups overlap</h3>
+        <p>Real data is messy. Here the two groups overlap a little, so no straight street can be clean. A strict SVM (C = {{hardC}})
+           squeezes in a street only {{ovlHardMargin}} wide and still gets {{ovlHardErr}} dot wrong.</p>
+      </div>
+      <div class="step" data-scene="c">
+        <span class="tag">3 · Soft margin</span>
+        <h3>C: how strict is the street?</h3>
+        <p>C is the price of a mistake. A large C punishes every dot on the wrong side, so the street gets narrow. A small C forgives some mistakes and keeps the street wide.
+           From strict (C = {{cBigC}}) to relaxed (C = {{cSmallC}}), the street grows from {{cBigMargin}} to {{cSmallMargin}} and the support vectors from {{cBigNSV}} to {{cSmallNSV}}.</p>
+      </div>
+      <div class="step" data-scene="fresh">
+        <span class="tag">3 · Soft margin</span>
+        <h3>C is a regularization knob</h3>
+        <p>Compare training accuracy with accuracy on {{nFresh}} fresh dots. Both extremes do worse; C = 1, the scikit-learn default, gets {{c1Fresh}} on fresh dots.
+           In scikit-learn a smaller C means stronger regularization, like the λ on the
+           <a href="../scaling-and-generalization/">scaling and generalization</a> page, where a bigger λ meant a stronger penalty.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 4 ================= -->
+  <section class="chapter" id="ch4">
+    <div class="sticky">
+      <svg id="viz4" class="drag" role="img" aria-label="A made-up cluster of group A inside a ring of group B, the best straight street an SVM can find with its mistakes marked, then a line you can turn with a curve of its accuracy at every angle"></svg>
+      <div class="caption" id="cap4"></div>
+      <div class="controls" id="ctl4">
+        <label for="ang4">Angle <input id="ang4" type="range" min="0" max="179" step="1" value="0" aria-label="Direction of the line, in degrees"></label>
+        <span class="out" id="ang4Out" aria-live="polite"></span>
+        <button type="button" id="auto4">Follow scroll</button>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="rings">
+        <span class="tag">4 · No line fits</span>
+        <h3>A cluster inside a ring</h3>
+        <p>Now group A is a small cluster and group B is a ring around it: {{nRing}} made-up dots. Imagine one straight line with all of A on one side and all of B on the other.
+           There is none, because the ring surrounds the cluster.</p>
+      </div>
+      <div class="step" data-scene="linear">
+        <span class="tag">4 · No line fits</span>
+        <h3>A straight street fails</h3>
+        <p>The best straight street an SVM can find gets {{linTrain}} of these dots right, and {{linFresh}} of {{nFresh}} fresh ones. That is barely better than guessing.
+           The red rings mark the mistakes.</p>
+      </div>
+      <div class="step" data-scene="try">
+        <span class="tag">4 · No line fits</span>
+        <h3>Try every line</h3>
+        <p>Turn a line through the picture: drag the figure or use the slider. At each angle it sits where it gets the most dots right.</p>
+        <div class="predict" data-pick="">
+          <p class="q">Predict: can any straight line get 90% right?</p>
+          <button type="button" data-a="yes">Yes</button><button type="button" data-a="no">No</button>
+          <div class="reveal" hidden><b>No.</b> Over all 360 directions and every position, the best line gets {{bestLine}}. The data is fine; a straight line is the wrong tool.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 5 ================= -->
+  <section class="chapter" id="ch5">
+    <div class="sticky">
+      <svg id="viz5" class="drag" tabindex="0" role="application" aria-label="Three-dimensional view of the ring data lifted by the height z = x1 squared plus x2 squared, with a flat separating sheet and the circle where it cuts. Drag to rotate, or use the arrow keys"></svg>
+      <div class="caption" id="cap5"></div>
+      <div class="controls" id="ctl5">
+        <span class="grp" id="grp5a">
+          <span class="pad" role="group" aria-label="Rotate the view">
+            <button type="button" id="rotL5" aria-label="Rotate the view left">◀</button>
+            <button type="button" id="rotR5" aria-label="Rotate the view right">▶</button>
+            <button type="button" id="rotU5" aria-label="Look from higher up">▲</button>
+            <button type="button" id="rotD5" aria-label="Look from lower down">▼</button>
+          </span>
+          <button type="button" id="auto5">Follow scroll</button>
+        </span>
+        <span class="grp" id="grp5b" hidden>
+          <label for="drop5">Circle <input id="drop5" type="range" min="0" max="100" step="1" value="100" aria-label="Where the circle is: on the flat sheet at the left, dropped onto the floor at the right"></label>
+          <span class="out" id="drop5Out" aria-live="polite"></span>
+        </span>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="lift">
+        <span class="tag">5 · Lift it</span>
+        <h3>Add a third number</h3>
+        <p>Give every dot a height: its squared distance from the centre. Scroll to lift them. The cluster stays near the floor, the ring rises high.</p>
+        <span class="formula">\(z=x_1^2+x_2^2\)</span>
+      </div>
+      <div class="step" data-scene="plane">
+        <span class="tag">5 · Lift it</span>
+        <h3>A flat sheet now fits</h3>
+        <p>In 3-D the groups sit at different heights: the cluster reaches at most {{zMaxA}}, the ring starts at {{zMinB}}. A flat sheet at height {{liftC}}
+           separates them with {{liftGap}} to spare. A flat sheet is a straight line's bigger sibling.</p>
+      </div>
+      <div class="step" data-scene="circle">
+        <span class="tag">5 · Lift it</span>
+        <h3>Drop it back down</h3>
+        <p>Where the sheet cuts the bowl, the dots' distance from the centre is {{liftRadius}}: a circle. Let that circle fall to the floor and look from above.
+           Back in 2-D, it separates cluster from ring.</p>
+      </div>
+      <div class="step" data-scene="turn">
+        <span class="tag">5 · Lift it</span>
+        <h3>Turn it around</h3>
+        <p>Drag the picture to rotate it, or use the buttons or arrow keys. Slide the circle back up onto the sheet. Nothing was curved in 3-D:
+           the curve in 2-D is a flat cut seen from above.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 6 ================= -->
+  <section class="chapter" id="ch6">
+    <div class="sticky">
+      <svg id="viz6" role="img" aria-label="Colour maps of how similar every place is to a reference dot under three kernels; a numeric check that the lifted dot product equals the squared dot product; and the RBF similarity fading with distance"></svg>
+      <div class="caption" id="cap6"></div>
+      <div class="controls" id="ctl6">
+        <span class="grp" id="grp6a">
+          <button type="button" data-k="linear" aria-pressed="false">Dot product</button>
+          <button type="button" data-k="poly" aria-pressed="false">Squared dot product</button>
+          <button type="button" data-k="rbf" aria-pressed="true">RBF</button>
+        </span>
+        <span class="grp" id="grp6a2">
+          <button type="button" data-ref="0" aria-pressed="true">Reference: cluster</button>
+          <button type="button" data-ref="1" aria-pressed="false">Reference: ring</button>
+          <button type="button" data-ref="2" aria-pressed="false">Reference: far out</button>
+        </span>
+        <span class="grp" id="grp6b" hidden>
+          <button type="button" data-pair="0" aria-pressed="true">Example pair</button>
+          <button type="button" data-pair="1" aria-pressed="false">Another pair</button>
+          <button type="button" id="pairRnd6">Random pair</button>
+        </span>
+        <span class="grp" id="grp6c" hidden>
+          <label for="g6">γ <input id="g6" type="range" min="0" max="20" step="1" value="8" aria-label="Gamma, how fast the RBF similarity fades with distance, on a log scale"></label>
+          <span class="out" id="g6Out" aria-live="polite"></span>
+        </span>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="similar">
+        <span class="tag">6 · The kernel trick</span>
+        <h3>The SVM only asks: how similar?</h3>
+        <p>Inside, an SVM never needs a dot's position, only how <b>similar</b> two dots are. A <b>kernel</b> is a similarity score.
+           Pick a reference dot (the cross) and a kernel: the colour shows how similar every place is to it.</p>
+      </div>
+      <div class="step" data-scene="check">
+        <span class="tag">6 · The kernel trick</span>
+        <h3>Lifting without lifting</h3>
+        <p>The degree-2 polynomial kernel scores two points as the square of their dot product. Lifting both into 3-D and taking the dot product there gives the very same number.
+           The kernel stays in 2-D and never builds the lifted points.</p>
+        <span class="formula">\((x\cdot y)^2=\varphi(x)\cdot\varphi(y)\)</span>
+        <span class="formula">\(\varphi(x)=\left(x_1^2,\ \sqrt2\,x_1x_2,\ x_2^2\right)\)</span>
+      </div>
+      <div class="step" data-scene="rbf">
+        <span class="tag">6 · The kernel trick</span>
+        <h3>A kernel that fades with distance</h3>
+        <p>The <b>RBF</b> kernel scores similarity as a bump that fades with distance; γ sets how fast. It matches a lift into infinitely many new numbers,
+           which no computer could build, yet the kernel is one short formula.</p>
+        <span class="formula">\(k(x,y)=e^{-\gamma\,\lVert x-y\rVert^2}\)</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 7 ================= -->
+  <section class="chapter" id="ch7">
+    <div class="sticky">
+      <svg id="viz7" role="img" aria-label="Decision regions of an SVM on the ring data or the moon data, for four kernels and for an RBF kernel with a gamma you choose, then training and fresh accuracy against gamma"></svg>
+      <div class="caption" id="cap7"></div>
+      <div class="controls" id="ctl7">
+        <span class="grp" id="grp7a">
+          <button type="button" data-ds="rings" aria-pressed="false">Rings</button>
+          <button type="button" data-ds="moons" aria-pressed="true">Moons</button>
+        </span>
+        <span class="grp" id="grp7b">
+          <button type="button" data-ker="linear" aria-pressed="false">Linear</button>
+          <button type="button" data-ker="poly2" aria-pressed="false">Polynomial 2</button>
+          <button type="button" data-ker="poly3" aria-pressed="false">Polynomial 3</button>
+          <button type="button" data-ker="rbf" aria-pressed="true">RBF</button>
+        </span>
+        <span class="grp" id="grp7c" hidden>
+          <label for="g7">γ <input id="g7" type="range" min="0" max="20" step="1" value="8" aria-label="Gamma of the RBF kernel, on a log scale"></label>
+          <span class="out" id="g7Out" aria-live="polite"></span>
+          <button type="button" id="auto7">Follow scroll</button>
+        </span>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="kernels">
+        <span class="tag">7 · Kernels side by side</span>
+        <h3>Four kernels, two shapes</h3>
+        <p>Same dots, different kernels. A line fails on both shapes. The polynomial of degree 2 gets {{ringP2}} of fresh ring dots, but the moons need more bend:
+           degree 3 gets {{moonP3}} of fresh moon dots, against {{moonLin}} for a line. Switch shapes and kernels under the figure.</p>
+      </div>
+      <div class="step" data-scene="gamma">
+        <span class="tag">7 · Kernels side by side</span>
+        <h3>γ: how far a dot's voice carries</h3>
+        <p>For the RBF kernel, a small γ gives wide, smooth bumps; a large γ gives narrow ones, so the boundary forms little islands around single dots.
+           Slide γ to the far right: {{gBigSV}} of {{nMoon}} moon dots become support vectors.</p>
+      </div>
+      <div class="step" data-scene="fresh">
+        <span class="tag">7 · Kernels side by side</span>
+        <h3>Islands do not generalize</h3>
+        <p>Training accuracy stays near 100%, but fresh accuracy falls from {{gBestFresh}} at a moderate γ to {{gBigFresh}} at the largest. That is overfitting, as on the
+           <a href="../scaling-and-generalization/">scaling and generalization</a> page. A tiny γ underfits instead: {{gTinyTrain}} even on training dots.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 8 ================= -->
+  <section class="chapter" id="ch8">
+    <div class="sticky">
+      <svg id="viz8" role="img" aria-label="The pipeline in the code: features go through a scaler into an SVM, which gives predictions and scores"></svg>
+      <div class="panel" id="pan8">
+        <div class="snip" data-snip="0">
+          <div class="head"><b>1 · Fit and look inside</b><button type="button" class="copy" aria-label="Copy snippet 1 to the clipboard">Copy</button></div>
+          <pre class="code" tabindex="0" aria-label="Python code for snippet 1, scrollable"><code>import numpy as np
+from sklearn.svm import SVC
+
+# Twenty made-up points, two numbers each: the dots of chapters 1 and 2.
+X = np.array([
+    [1.79, 0.93], [-1.34, -0.64], [0.77, 1.13], [-1.16, -0.73],
+    [1.81, 0.33], [-1.00, -0.71], [0.77, 1.60], [-2.70, -1.26],
+    [1.73, 1.35], [-1.98, -2.18], [1.46, 0.92], [-1.71, -1.61],
+    [1.93, 1.92], [-1.69, -1.49], [1.40, 0.81], [-1.31, -1.31],
+    [1.30, -0.20], [-1.19, -0.47], [1.53, 2.25], [-0.79, -0.88],
+])
+y = [1, -1] * 10                          # 1 = group A, -1 = group B
+
+clf = SVC(kernel="linear", C=1000)        # a huge C: (almost) no mistakes allowed
+clf.fit(X, y)
+
+print(clf.support_vectors_)               # the points on the edge of the street
+print(clf.support_)                       # which rows of X they are
+print(clf.n_support_)                     # how many per group (-1 first, then 1)
+print(2 / np.linalg.norm(clf.coef_))      # street width = 2 / length of w
+print(clf.predict([[2.0, 1.0], [-2.0, -1.0]]))</code></pre>
+          <div class="outlabel">Output</div>
+          <pre class="out" tabindex="0" aria-label="Output of snippet 1"><code>[[-0.79 -0.88]
+ [ 0.77  1.13]
+ [ 1.3  -0.2 ]]
+[19  2 16]
+[1 2]
+2.1929998985373866
+[ 1 -1]</code></pre>
+        </div>
+        <div class="snip" data-snip="1" hidden>
+          <div class="head"><b>2 · Scale, then fit</b><button type="button" class="copy" aria-label="Copy snippet 2 to the clipboard">Copy</button></div>
+          <pre class="code" tabindex="0" aria-label="Python code for snippet 2, scrollable"><code>from sklearn.datasets import make_circles
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+
+# A cluster inside a ring, like chapter 4.
+X, y = make_circles(n_samples=200, noise=0.1, factor=0.3, random_state=0)
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+
+# Scale first, then the SVM. The pipeline remembers the scaling numbers
+# from the training data and reuses them on new data.
+rbf = make_pipeline(StandardScaler(), SVC(kernel="rbf", C=1, gamma="scale"))
+rbf.fit(X_train, y_train)
+
+line = make_pipeline(StandardScaler(), SVC(kernel="linear"))
+line.fit(X_train, y_train)
+
+print("rbf    ", rbf.score(X_test, y_test))
+print("linear ", line.score(X_test, y_test))
+print("support vectors:", rbf[-1].n_support_.sum(), "of", len(X_train))</code></pre>
+          <div class="outlabel">Output</div>
+          <pre class="out" tabindex="0" aria-label="Output of snippet 2"><code>rbf     1.0
+linear  0.56
+support vectors: 23 of 150</code></pre>
+        </div>
+        <div class="snip" data-snip="2" hidden>
+          <div class="head"><b>3 · Tune C and gamma</b><button type="button" class="copy" aria-label="Copy snippet 3 to the clipboard">Copy</button></div>
+          <pre class="code" tabindex="0" aria-label="Python code for snippet 3, scrollable"><code>from sklearn.datasets import make_moons
+from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+
+X, y = make_moons(n_samples=200, noise=0.25, random_state=0)
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+
+pipe = make_pipeline(StandardScaler(), SVC(kernel="rbf"))
+grid = {"svc__C": [0.1, 1, 10, 100],          # step name, two underscores, parameter
+        "svc__gamma": [0.01, 0.1, 1, 10]}
+
+# Try every pair with 5-fold cross-validation on the training data only.
+search = GridSearchCV(pipe, grid, cv=5)
+search.fit(X_train, y_train)
+
+print(search.best_params_)
+print("cross-validated:", round(search.best_score_, 3))
+print("fresh test data:", round(search.score(X_test, y_test), 3))</code></pre>
+          <div class="outlabel">Output</div>
+          <pre class="out" tabindex="0" aria-label="Output of snippet 3"><code>{'svc__C': 10, 'svc__gamma': 1}
+cross-validated: 0.913
+fresh test data: 0.96</code></pre>
+        </div>
+        <div class="snip" data-snip="3" hidden>
+          <div class="head"><b>4 · Language identification</b><button type="button" class="copy" aria-label="Copy snippet 4 to the clipboard">Copy</button></div>
+          <pre class="code" tabindex="0" aria-label="Python code for snippet 4, scrollable"><code>from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.pipeline import make_pipeline
+from sklearn.svm import LinearSVC
+
+train = [
+    ("The weather is lovely today, so we are going for a walk.", "en"),
+    ("She has been learning to translate legal contracts for two years.", "en"),
+    ("Could you please send me the final version of the document?", "en"),
+    ("My brother lives in a small town near the sea.", "en"),
+    ("Das Wetter ist heute schön, deshalb gehen wir spazieren.", "de"),
+    ("Sie lernt seit zwei Jahren, juristische Verträge zu übersetzen.", "de"),
+    ("Könntest du mir bitte die endgültige Fassung des Dokuments schicken?", "de"),
+    ("Mein Bruder wohnt in einer kleinen Stadt am Meer.", "de"),
+    ("Hoy hace muy buen tiempo, así que vamos a dar un paseo.", "es"),
+    ("Ella lleva dos años aprendiendo a traducir contratos legales.", "es"),
+    ("¿Podrías enviarme la versión final del documento, por favor?", "es"),
+    ("Mi hermano vive en un pueblo pequeño cerca del mar.", "es"),
+]
+texts, labels = zip(*train)
+
+# Count short letter sequences (1 to 3 letters), weight them with TF-IDF,
+# then draw straight-line streets between the three languages.
+model = make_pipeline(
+    TfidfVectorizer(analyzer="char_wb", ngram_range=(1, 3)),
+    LinearSVC(),
+)
+model.fit(texts, labels)
+
+new = [
+    "We will translate the manual before the end of the month.",
+    "Wir übersetzen das Handbuch noch vor Ende des Monats.",
+    "Vamos a traducir el manual antes de que acabe el mes.",
+]
+print(model.classes_)                     # the order of the columns below
+print(model.predict(new))                 # one language code per sentence
+print(model.decision_function(new).round(2))   # one score per language</code></pre>
+          <div class="outlabel">Output</div>
+          <pre class="out" tabindex="0" aria-label="Output of snippet 4"><code>['de' 'en' 'es']
+['en' 'de' 'es']
+[[-0.64  0.35 -0.68]
+ [-0.14 -0.53 -0.32]
+ [-0.59 -0.53  0.13]]</code></pre>
+        </div>
+        <div class="snip" data-snip="4" hidden>
+          <div class="head"><b>5 · The kernel trick by hand (optional)</b><button type="button" class="copy" aria-label="Copy snippet 5 to the clipboard">Copy</button></div>
+          <pre class="code" tabindex="0" aria-label="Python code for snippet 5, scrollable"><code>import numpy as np
+from sklearn.datasets import make_circles
+from sklearn.svm import SVC
+
+X, y = make_circles(n_samples=100, noise=0.1, factor=0.3, random_state=0)
+
+def gram(A, B):
+    """Similarity of every row of A with every row of B: (a . b) squared."""
+    return (A @ B.T) ** 2
+
+# Hand the SVM the table of similarities instead of the points.
+by_hand = SVC(kernel="precomputed").fit(gram(X, X), y)
+print(by_hand.score(gram(X, X), y))
+
+# scikit-learn can do the same thing by itself: (gamma * a . b + coef0) ** degree
+built_in = SVC(kernel="poly", degree=2, gamma=1, coef0=0).fit(X, y)
+print(built_in.score(X, y))
+print(np.array_equal(by_hand.support_, built_in.support_))</code></pre>
+          <div class="outlabel">Output</div>
+          <pre class="out" tabindex="0" aria-label="Output of snippet 5"><code>1.0
+1.0
+True</code></pre>
+        </div>
+        <p class="ver">Outputs from scikit-learn 1.9.1 (numpy 2.5.5). Your numbers can differ in the last digits with other versions.</p>
+      </div>
+      <div class="caption" id="cap8"></div>
+      <div class="controls" id="ctl8">
+        <span class="grp" id="grp8">
+          <button type="button" data-snip="0" aria-pressed="true">1 Fit</button>
+          <button type="button" data-snip="1" aria-pressed="false">2 Pipeline</button>
+          <button type="button" data-snip="2" aria-pressed="false">3 Tuning</button>
+          <button type="button" data-snip="3" aria-pressed="false">4 Text</button>
+          <button type="button" data-snip="4" aria-pressed="false">5 By hand</button>
+          <button type="button" id="auto8">Follow scroll</button>
+        </span>
+      </div>
+    </div>
+    <div class="steps tall">
+      <div class="step" data-scene="fit">
+        <span class="tag">8 · scikit-learn</span>
+        <h3>Fit, then look inside</h3>
+        <p><code>SVC</code> is scikit-learn's SVM. Fit it on the dots of chapters 1 and 2, then read off the support vectors, their row numbers and counts,
+           and the street width from <code>coef_</code>. A huge <code>C</code> approximates a hard margin.</p>
+      </div>
+      <div class="step" data-scene="pipeline">
+        <span class="tag">8 · scikit-learn</span>
+        <h3>Scale, then fit</h3>
+        <p>An SVM measures distances, so scale features first. A <code>Pipeline</code> keeps scaler and model together and reuses the training numbers on new data.
+           Swap <code>kernel</code> between <code>"linear"</code>, <code>"poly"</code> and <code>"rbf"</code>; <code>gamma="scale"</code> is the default.</p>
+      </div>
+      <div class="step" data-scene="tune">
+        <span class="tag">8 · scikit-learn</span>
+        <h3>Tune C and γ</h3>
+        <p><code>GridSearchCV</code> tries every pair of values with cross-validation inside the training data, so the test data stays untouched until the very end.
+           Never choose C and γ by looking at the test set.</p>
+      </div>
+      <div class="step" data-scene="text">
+        <span class="tag">8 · scikit-learn</span>
+        <h3>Text: TF-IDF and LinearSVC</h3>
+        <p>For text, turn each sentence into TF-IDF numbers and use <code>LinearSVC</code>, a fast SVM with a straight street. Here it tells English, German and Spanish apart.
+           It gives scores, not probabilities: <code>decision_function</code>. <code>probability=True</code> on <code>SVC</code> adds Platt scaling, but is slower.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 9 ================= -->
+  <section class="chapter" id="ch9">
+    <div class="sticky">
+      <svg id="viz9" role="img" aria-label="The route of this page: draw the widest street, allow mistakes with C, lift with a kernel, check on fresh data"></svg>
+      <div class="panel" id="pan9"></div>
+      <div class="caption" id="cap9"></div><div class="controls" id="ctl9"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="idea">
+        <span class="tag">9 · Recap</span>
+        <h3>The big idea in four lines</h3>
+        <p>Margin, soft margin, kernel, γ: each answers one question about drawing a boundary between two groups.</p>
+      </div>
+      <div class="step" data-scene="when">
+        <span class="tag">9 · Recap</span>
+        <h3>When SVMs shine, and when not</h3>
+        <p>They shine with many features and moderate numbers of examples, which is why TF-IDF with a linear SVM was a strong text baseline for years. They struggle when the data is huge.</p>
+      </div>
+      <div class="step" data-scene="language">
+        <span class="tag">9 · Recap</span>
+        <h3>Rules of thumb</h3>
+        <p>Scale the features, start with a linear street for text, try RBF for small dense data, choose C and γ by cross-validation, and judge the result on fresh data.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p><b>The Widest Street: a visual introduction to support vector machines and the kernel trick.</b>
+     Part of the <i>Introduction to ML for Language Technologies</i> course materials. Inspired by the classic 'polynomial kernel' 3-D animation of SVMs;
+     the 3-D scene here is drawn from scratch. Page style inspired by
+     <a href="https://www.r2d3.us/visual-intro-to-machine-learning-part-1/">R2D3: A Visual Introduction to Machine Learning</a>.</p>
+  <p>The code follows the <a href="https://scikit-learn.org/stable/modules/svm.html">scikit-learn SVM user guide</a>.
+     Every snippet in chapter 8 was run with scikit-learn 1.9.1, and the outputs shown are the real ones.</p>
+  <p>All data on this page is made up: the {{nSep}}, {{nOvl}}, {{nRing}} and {{nMoon}} dots (and the {{nFresh}} fresh dots of each set) come from a seeded random generator in
+     <code>svm-math.js</code>, so they never change. Every street, support vector, accuracy and number is computed in your browser by that file
+     (unit-tested by <code>svm-math.test.js</code>), with a small SMO solver that agrees with scikit-learn on these points. The page works offline; open the file directly.</p>
+</footer>
+
+<script src="../vendor/katex/katex.min.js"></script>
+<script src="../vendor/katex/auto-render.min.js" onerror="this.onerror=null"></script>
+<script src="svm-math.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
