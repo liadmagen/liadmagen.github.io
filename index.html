@@ -1,16 +1,239 @@
-<h1>Introduction to Machine Learning</h1>
-<h2>... and other topics</h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liad Magen · Machine learning, explained visually</title>
+<meta name="description" content="Liad Magen: machine learning advisor, teacher and researcher. Interactive, scroll-driven introductions to machine learning.">
+<style>
+  :root{
+    --ink:#1d2733; --muted:#55636f; --bg:#faf9f6; --card:#ffffff; --line:#e5e1d8;
+    --accent:#6d5bd0; --accent-soft:#ece9fb; --blue:#1f6fd1; --orange:#d9730d; --teal:#0f8a8a;
+    --shadow:0 10px 30px rgba(30,40,60,.07);
+    --glow1:#e8efff; --glow2:#fdeeda;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ink:#e8e6e1; --muted:#a3abb4; --bg:#14171c; --card:#1c2027; --line:#2c323b;
+      --accent:#9d8ff0; --accent-soft:#2a2645; --blue:#6aa5f0; --orange:#f0a35a; --teal:#4cc2c2;
+      --shadow:0 10px 30px rgba(0,0,0,.35);
+      --glow1:#1d2540; --glow2:#33261a;
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:17px;line-height:1.6}
+  a{color:var(--blue)}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
 
-<h3>Visual Learnings</h3>
-<ul>
-    <li>Linear and Logistic Regression - <a href="ml_intro/linear-and-logistic-regression/">Link</a></li>
-    <li>Decision Trees - <a href="ml_intro/decision_trees/">Link</a></li>
-    <li>Pointwise Mutual Information - <a href="ml_intro/pmi/">Link</a></li>
-    <li>Scaling and Generalization - <a href="ml_intro/scaling-and-generalization/">Link</a></li>
-    <li>Support Vector Machines - <a href="ml_intro/svm-and-kernels/">Link</a></li>
-</ul>
+  /* hero */
+  header{padding:96px 0 72px;background:
+    radial-gradient(900px 420px at 15% -10%, var(--glow1) 0%, transparent 60%),
+    radial-gradient(800px 420px at 90% 110%, var(--glow2) 0%, transparent 55%), var(--bg)}
+  .kicker{letter-spacing:.2em;text-transform:uppercase;font-size:.78rem;color:var(--accent);font-weight:700;margin:0}
+  h1{font-size:clamp(2.3rem,6vw,3.8rem);line-height:1.08;margin:.5rem 0 .8rem;letter-spacing:-.01em}
+  .lead{font-size:1.15rem;color:var(--muted);max-width:56ch;margin:0 0 1.6rem}
+  .actions{display:flex;flex-wrap:wrap;gap:10px}
+  .btn{display:inline-flex;align-items:center;gap:.5em;padding:.6em 1.1em;border-radius:10px;font-weight:600;
+    text-decoration:none;border:1px solid var(--line);background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn:hover{transform:translateY(-1px)}
+  .btn:focus-visible,.card:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+  .btn svg{width:18px;height:18px;flex:none}
 
-<h3>About me</h3>
-<p>My name is <a href="https://www.linkedin.com/in/liadmagen">Liad Magen</a>. I am a machine learning advisor, teacher and researcher. I have a background in computer science and have worked on various projects related to data analysis, predictive modeling, and artificial intelligence.</p>
-<p>Currently, I'm working as an AI consultant.</p>
-<p>Feel free to reach out and connect with me on <a href="https://www.linkedin.com/in/liadmagen">LinkedIn</a>.</p>
+  section{padding:64px 0}
+  h2{font-size:1.7rem;margin:0 0 .4rem}
+  .section-lead{color:var(--muted);margin:0 0 1.8rem;max-width:62ch}
+
+  /* explainer cards */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:18px}
+  .card{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:16px;
+    overflow:hidden;text-decoration:none;color:inherit;box-shadow:var(--shadow);transition:transform .2s,box-shadow .2s}
+  .card:hover{transform:translateY(-3px);box-shadow:0 16px 40px rgba(30,40,60,.13)}
+  @media (prefers-reduced-motion: reduce){.card,.btn{transition:none}.card:hover,.btn:hover{transform:none}}
+  .thumb{height:132px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center}
+  .thumb svg{width:100%;height:100%}
+  .card .body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:.35rem;flex:1}
+  .card .topic{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  .card h3{margin:0;font-size:1.18rem;line-height:1.25}
+  .card p{margin:0;color:var(--muted);font-size:.95rem}
+  .card .go{margin-top:auto;padding-top:.5rem;font-weight:600;color:var(--blue);font-size:.92rem}
+
+  .how{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:26px}
+  .how div{border-left:3px solid var(--accent);padding:.2rem 0 .2rem .9rem}
+  .how b{display:block}
+  .how span{color:var(--muted);font-size:.95rem}
+
+  /* about */
+  .about{display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:start}
+  .avatar{width:112px;height:112px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--teal));
+    color:#fff;display:flex;align-items:center;justify-content:center;font-size:2.4rem;font-weight:700;letter-spacing:.02em}
+  .about p{margin:0 0 1rem;max-width:62ch}
+  .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:1.4rem 0}
+  .pillar{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .pillar b{display:block;margin-bottom:.2rem}
+  .pillar span{color:var(--muted);font-size:.93rem}
+
+  footer{border-top:1px solid var(--line);padding:28px 0 40px;color:var(--muted);font-size:.9rem}
+  footer .wrap{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-between}
+
+  @media (max-width:600px){
+    header{padding:64px 0 48px}
+    section{padding:44px 0}
+    .about{grid-template-columns:1fr}
+    .avatar{width:84px;height:84px;font-size:1.8rem}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <p class="kicker">Liad Magen</p>
+    <h1>Machine learning, explained by playing with it.</h1>
+    <p class="lead">I advise, teach and research machine learning. Here you'll find interactive, scroll-driven
+      introductions to its core ideas, written for people who think in words more than in formulas.</p>
+    <div class="actions">
+      <a class="btn primary" href="#explainers">Start exploring</a>
+      <a class="btn" href="#about">About me</a>
+      <a class="btn" href="https://www.linkedin.com/in/liadmagen">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM9 9h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05C20.6 8.65 21 11.2 21 14.5V21h-4v-5.8c0-1.4-.03-3.2-1.95-3.2-1.95 0-2.25 1.52-2.25 3.1V21H9z"/></svg>
+        LinkedIn</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section id="explainers">
+    <div class="wrap">
+      <h2>Visual explainers</h2>
+      <p class="section-lead">Each page is a short story: scroll, and the picture changes with you; drag, slide and
+        click to test the idea yourself. All numbers are computed live in your browser.</p>
+
+      <div class="grid">
+        <a class="card" href="ml_intro/linear-and-logistic-regression/">
+          <div class="thumb" aria-hidden="true">
+            <svg viewBox="0 0 300 132" preserveAspectRatio="xMidYMid meet">
+              <g fill="var(--blue)"><circle cx="50" cy="40" r="5"/><circle cx="72" cy="52" r="5"/><circle cx="95" cy="48" r="5"/><circle cx="118" cy="66" r="5"/><circle cx="140" cy="62" r="5"/></g>
+              <g fill="var(--orange)"><circle cx="165" cy="80" r="5"/><circle cx="190" cy="78" r="5"/><circle cx="212" cy="96" r="5"/><circle cx="236" cy="92" r="5"/><circle cx="256" cy="104" r="5"/></g>
+              <path d="M30 34 C120 34,150 100,272 104" fill="none" stroke="var(--accent)" stroke-width="3"/>
+            </svg>
+          </div>
+          <div class="body">
+            <span class="topic">Regression</span>
+            <h3>From a Number to a Yes</h3>
+            <p>Draw your own line, watch gradient descent find a better one, then bend it into a probability.</p>
+            <span class="go">Open →</span>
+          </div>
+        </a>
+
+        <a class="card" href="ml_intro/decision_trees/">
+          <div class="thumb" aria-hidden="true">
+            <svg viewBox="0 0 300 132">
+              <g stroke="var(--muted)" stroke-width="2"><line x1="150" y1="30" x2="95" y2="72"/><line x1="150" y1="30" x2="205" y2="72"/><line x1="95" y1="72" x2="65" y2="108"/><line x1="95" y1="72" x2="125" y2="108"/></g>
+              <rect x="128" y="18" width="44" height="24" rx="6" fill="var(--card)" stroke="var(--accent)" stroke-width="2.5"/>
+              <rect x="73" y="60" width="44" height="24" rx="6" fill="var(--card)" stroke="var(--accent)" stroke-width="2.5"/>
+              <circle cx="205" cy="76" r="10" fill="var(--blue)"/><circle cx="65" cy="110" r="10" fill="var(--blue)"/>
+              <path d="M125 99 l10 10 -10 10 -10 -10z" fill="var(--orange)"/>
+            </svg>
+          </div>
+          <div class="body">
+            <span class="topic">Decision trees</span>
+            <h3>Teaching a computer to ask the right questions</h3>
+            <p>Gini impurity, the best split, overfitting, random forests and boosting, one question at a time.</p>
+            <span class="go">Open →</span>
+          </div>
+        </a>
+
+        <a class="card" href="ml_intro/pmi/">
+          <div class="thumb" aria-hidden="true">
+            <svg viewBox="0 0 300 132" font-family="inherit" font-size="15" font-weight="600">
+              <text x="70" y="52" fill="var(--ink)">strong</text>
+              <text x="170" y="52" fill="var(--ink)">tea</text>
+              <path d="M128 47 L164 47" stroke="var(--teal)" stroke-width="4" stroke-linecap="round"/>
+              <text x="64" y="98" fill="var(--muted)">powerful</text>
+              <text x="170" y="98" fill="var(--muted)">tea</text>
+              <path d="M140 93 L164 93" stroke="var(--orange)" stroke-width="2" stroke-dasharray="4 4"/>
+            </svg>
+          </div>
+          <div class="body">
+            <span class="topic">Collocations</span>
+            <h3>Which words belong together?</h3>
+            <p>Pointwise mutual information: why counting isn't enough, and how a corpus tool finds collocations.</p>
+            <span class="go">Open →</span>
+          </div>
+        </a>
+
+        <a class="card" href="ml_intro/scaling-and-generalization/">
+          <div class="thumb" aria-hidden="true">
+            <svg viewBox="0 0 300 132">
+              <g fill="var(--blue)"><circle cx="60" cy="40" r="5"/><circle cx="75" cy="70" r="5"/><circle cx="55" cy="95" r="5"/><circle cx="85" cy="55" r="5"/><circle cx="70" cy="105" r="5"/></g>
+              <g fill="var(--orange)"><path d="M115 45 l6 6-6 6-6-6z"/><path d="M128 75 l6 6-6 6-6-6z"/><path d="M110 98 l6 6-6 6-6-6z"/><path d="M132 52 l6 6-6 6-6-6z"/></g>
+              <line x1="97" y1="22" x2="97" y2="118" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="5 4"/>
+              <path d="M170 98 C195 40,215 40,232 70 S262 108,282 34" fill="none" stroke="var(--teal)" stroke-width="3"/>
+            </svg>
+          </div>
+          <div class="body">
+            <span class="topic">Scaling &amp; regularization</span>
+            <h3>Fair scales, honest models</h3>
+            <p>Why metres vs kilograms breaks k-means, how standardization fixes it, and how L1/L2 stop a model memorising.</p>
+            <span class="go">Open →</span>
+          </div>
+        </a>
+
+        <a class="card" href="ml_intro/svm-and-kernels/">
+          <div class="thumb" aria-hidden="true">
+            <svg viewBox="0 0 300 132">
+              <ellipse cx="150" cy="66" rx="62" ry="40" fill="none" stroke="var(--teal)" stroke-width="3"/>
+              <g fill="var(--blue)"><circle cx="140" cy="60" r="5"/><circle cx="158" cy="70" r="5"/><circle cx="150" cy="54" r="5"/><circle cx="135" cy="76" r="5"/><circle cx="165" cy="58" r="5"/></g>
+              <g fill="var(--orange)"><path d="M70 60 l6 6-6 6-6-6z"/><path d="M230 64 l6 6-6 6-6-6z"/><path d="M150 6 l6 6-6 6-6-6z"/><path d="M150 112 l6 6-6 6-6-6z"/><path d="M90 20 l6 6-6 6-6-6z"/><path d="M212 106 l6 6-6 6-6-6z"/></g>
+            </svg>
+          </div>
+          <div class="body">
+            <span class="topic">Support vector machines</span>
+            <h3>The widest street</h3>
+            <p>Margins, support vectors, and the kernel trick: lift the data into 3-D and a flat sheet separates it.</p>
+            <span class="go">Open →</span>
+          </div>
+        </a>
+      </div>
+
+      <div class="how">
+        <div><b>Scroll</b><span>The figure stays in place and changes as you read.</span></div>
+        <div><b>Play</b><span>Sliders, drag handles and buttons let you test each idea.</span></div>
+        <div><b>Guess first</b><span>Short questions ask you to predict before the page reveals the answer.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="about">
+    <div class="wrap about">
+      <div class="avatar" aria-hidden="true">LM</div>
+      <div>
+        <h2>About me</h2>
+        <p>My name is Liad Magen. I am a machine learning advisor, teacher and researcher, with a background in
+          computer science. I have worked on projects in data analysis, predictive modelling and artificial
+          intelligence, and I currently work as an AI consultant.</p>
+        <div class="pillars">
+          <div class="pillar"><b>Advise</b><span>Helping organisations turn AI ideas into systems that work.</span></div>
+          <div class="pillar"><b>Teach</b><span>Making machine learning intuitive, as in the explainers above.</span></div>
+          <div class="pillar"><b>Research</b><span>Data analysis, predictive modelling and AI.</span></div>
+        </div>
+        <p>Feel free to reach out and connect with me on <a href="https://www.linkedin.com/in/liadmagen">LinkedIn</a>.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© Liad Magen</span>
+    <span>Explainers inspired by <a href="https://r2d3.us/visual-intro-to-machine-learning-part-1/">R2D3</a>.</span>
+  </div>
+</footer>
+
+</body>
+</html>
