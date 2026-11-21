@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From a Yes to a Network — Neural Networks and the Road to word2vec</title>
+<meta name="description" content="A scroll-driven visual introduction to neural networks for language students: start from logistic regression, see why one neuron is not enough, watch a network learn, and end with a tiny next-word model whose word vectors set the stage for word2vec.">
+<link rel="stylesheet" href="../vendor/katex/katex.min.css">
+<style>
+  :root{
+    --ink:#1d2733; --muted:#55636f; --bg:#faf9f6; --card:#ffffff;
+    /* one meaning per colour: purple = the thing you move / the focus, blue = "yes" and evidence for,
+       orange = "no", evidence against and error, red = blame flowing backwards, teal = the final result */
+    --blue:#1f6fd1; --blue-soft:#dbe8fa; --orange:#d9730d; --orange-soft:#fbe6d0;
+    --grey:#7d8894; --teal:#0f8a8a; --line:#e5e1d8; --accent:#6d5bd0; --red:#b3261e;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;font-size:17px;}
+  h1,h2,h3{line-height:1.2}
+  a{color:var(--blue)}
+  [hidden]{display:none !important}
+  .katex{font-size:1.05em}
+
+  /* ---------- hero ---------- */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;
+    text-align:center;padding:3rem 1.2rem;background:
+    radial-gradient(1200px 500px at 20% -10%, #e8efff 0%, transparent 60%),
+    radial-gradient(1000px 500px at 85% 110%, #fdeeda 0%, transparent 55%), var(--bg);}
+  .hero .kicker{letter-spacing:.2em;text-transform:uppercase;font-size:.78rem;color:var(--accent);font-weight:700}
+  .hero h1{font-size:clamp(2.1rem,6vw,3.9rem);margin:.6rem 0 .6rem;max-width:18ch}
+  .hero .lead{max-width:60ch;color:var(--muted);font-size:1.12rem;margin:.3rem 0}
+  .road{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:.45rem .5rem;margin:1.6rem 0 1rem;max-width:760px}
+  .road .stop{background:var(--card);border:2px solid var(--line);border-radius:12px;padding:.35rem .8rem;font-weight:600;font-size:.95rem;
+    box-shadow:0 6px 18px rgba(30,40,60,.06)}
+  .road .stop.known{border-color:#bcd2f3;background:var(--blue-soft);color:#154f98}
+  .road .stop.goal{border-color:#cfc7f0;background:#efecfb;color:#40349a}
+  .road .arrow{color:var(--muted);font-weight:700}
+  .hero .uses{max-width:60ch;font-size:.95rem;color:var(--muted);margin-top:.8rem}
+  .scroll-hint{margin-top:2.2rem;color:var(--muted);font-size:.85rem;animation:bob 1.8s ease-in-out infinite}
+  .scroll-hint .arrow{display:block;font-size:1.4rem}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
+
+  /* ---------- progress nav ---------- */
+  #dotnav{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:50;
+    display:flex;flex-direction:column;gap:12px}
+  #dotnav a{width:12px;height:12px;border-radius:50%;background:#cfc9bc;display:block;position:relative;transition:background .3s,transform .3s}
+  #dotnav a.on{background:var(--accent);transform:scale(1.35)}
+  #dotnav a span{position:absolute;right:20px;top:50%;transform:translateY(-50%);white-space:nowrap;
+    background:var(--ink);color:#fff;font-size:.72rem;padding:.15rem .55rem;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s}
+  #dotnav a:hover span,#dotnav a:focus span{opacity:1}
+
+  /* ---------- scrolly layout ---------- */
+  .chapter{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:1.5rem;
+    padding:0 clamp(.5rem,3vw,3rem);align-items:start}
+  .chapter + .chapter{margin-top:10vh}
+  .sticky{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
+    justify-content:center;align-items:center;gap:.4rem;padding:.6rem 0;min-width:0}
+  .sticky svg{width:100%;max-width:720px;height:auto;max-height:calc(100vh - 210px);background:var(--card);
+    border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(30,40,60,.07)}
+  .sticky .caption{font-size:.92rem;color:var(--muted);text-align:center;min-height:3em;max-width:720px;line-height:1.45}
+  .sticky .caption b{color:var(--ink)}
+  .controls{display:none;flex-direction:column;gap:.35rem;align-items:center;justify-content:center;max-width:720px;font-size:.9rem;min-height:3.4rem}
+  .controls.on{display:flex}
+  .controls.off{opacity:.45}
+  .controls .grp{display:flex;flex-wrap:wrap;gap:.35rem .9rem;align-items:center;justify-content:center}
+  .controls button:disabled,.controls input:disabled,.controls select:disabled{cursor:not-allowed}
+  .controls label{display:flex;align-items:center;gap:.4rem;color:var(--muted)}
+  .controls select,.controls button{font:inherit;font-size:.9rem;padding:.25rem .55rem;border-radius:8px;
+    border:1px solid #c9c3b6;background:#fff;color:var(--ink)}
+  .controls button{cursor:pointer;background:#f4f2ec}
+  .controls button:hover:not(:disabled){background:#ece8dd}
+  .controls button[aria-pressed=true],.controls button[aria-pressed=true]:hover:not(:disabled){background:var(--accent);color:#fff;border-color:var(--accent)}
+  .controls input[type=range]{width:min(150px,28vw);accent-color:var(--accent)}
+  .controls .out{font-family:var(--mono);color:var(--ink);min-width:3.2ch;text-align:right}
+  .controls .end{font-size:.82rem;color:var(--muted);white-space:nowrap}
+  :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .steps{display:flex;flex-direction:column;gap:55vh;padding:52vh 0 85vh} /* the figure pins before the first step becomes active */
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:1.2rem 1.35rem;box-shadow:0 6px 18px rgba(30,40,60,.06);
+    opacity:.25;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease}
+  .step.active{opacity:1;transform:none}
+  .step h3{margin:.1rem 0 .5rem;font-size:1.22rem}
+  .step p{margin:.45rem 0;color:#33404f}
+  .step ul.mini{margin:.4rem 0;padding-left:1.15rem;color:#33404f}
+  .step ul.mini li{margin:.2rem 0}
+  .step .tag{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--accent);background:#efecfb;border-radius:6px;padding:.12rem .5rem;margin-bottom:.4rem}
+  .step .opt{color:#7a4a00;background:#fdf0d8;border-radius:6px;padding:.1rem .45rem;font-size:.72rem;font-weight:700;margin-left:.3rem;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+  .formula{display:block;background:#f4f2ec;border:1px solid var(--line);border-radius:10px;
+    padding:.5rem .8rem;margin:.55rem 0;overflow-x:auto;text-align:center}
+  .formula .katex{font-size:1em}
+  .note{font-size:.88rem;color:var(--muted)}
+  .predict{border:2px dashed #cfc7f0;background:#f8f6ff;border-radius:12px;padding:.6rem .9rem;margin:.6rem 0}
+  .predict .q{font-weight:600;margin:0 0 .4rem}
+  .predict button{font:inherit;font-size:.9rem;padding:.25rem .8rem;margin:0 .4rem .3rem 0;border-radius:8px;border:1px solid #b9aeea;background:#fff;cursor:pointer}
+  .predict button:hover{background:#efecfb}
+  .predict button.picked{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .predict .reveal{margin-top:.5rem;padding-top:.5rem;border-top:1px solid #dcd6f5}
+  svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  foreignObject{overflow:visible}
+  .svgmath{font-size:14px;line-height:1.3;color:var(--ink);width:100%;white-space:nowrap}
+  .svgmath.c{text-align:center}
+  .svgmath.r{text-align:right}
+  #tip{position:fixed;z-index:100;pointer-events:none;background:var(--ink);color:#fff;font-size:.82rem;line-height:1.4;
+    padding:.4rem .6rem;border-radius:8px;max-width:240px;opacity:0;transition:opacity .12s}
+  #tip.on{opacity:1}
+  .hit{cursor:pointer}
+
+  footer{border-top:1px solid var(--line);margin-top:8vh;padding:3rem 1.2rem 4rem;
+    text-align:center;color:var(--muted);font-size:.9rem}
+  footer p{max-width:72ch;margin:.5rem auto}
+
+  @media (prefers-reduced-motion:reduce){.step{transition:none}html{scroll-behavior:auto}.scroll-hint{animation:none}}
+
+  @media (max-width:920px){
+    body{font-size:16px}
+    .chapter{grid-template-columns:minmax(0,1fr)}
+    /* The figure is pinned in the top half of the screen; a step becomes active when its top
+       reaches 66% of the viewport height (see kit.js), so the active box sits fully below the figure. */
+    .sticky{top:0;height:54vh;z-index:5;padding:.25rem 0;background:var(--bg);gap:.2rem;justify-content:flex-start}
+    .sticky svg{max-height:calc(54vh - 112px)}
+    .sticky .caption{font-size:.78rem;min-height:2.6em;line-height:1.3;padding:0 .5rem}
+    .controls{gap:.2rem;font-size:.82rem;min-height:2.6rem}
+    .controls .grp{gap:.2rem .6rem}
+    .controls button{padding:.2rem .5rem}
+    .controls input[type=range]{width:24vw}
+    .controls .out{display:none}
+    .step,.predict,.predict button,.step .controls button,.step .controls input{scroll-margin-top:60vh}
+    .steps{padding:58vh 0 60vh;gap:34vh}
+    .formula{padding:.4rem .5rem}.formula .katex{font-size:.92em}
+    #dotnav{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="kicker">Introduction to ML for Language Technologies</div>
+  <h1>From a Yes to a Network</h1>
+  <p class="lead">Where do neural networks come from, and what do they have to do with word vectors?</p>
+  <div class="road" aria-label="The road of this page">
+    <span class="stop known">linear regression</span><span class="arrow">→</span>
+    <span class="stop known">logistic regression</span><span class="arrow">→</span>
+    <span class="stop">a neuron</span><span class="arrow">→</span>
+    <span class="stop">a network</span><span class="arrow">→</span>
+    <span class="stop goal">word vectors</span>
+  </div>
+  <p class="lead">You already know the first two: a weighted sum, and the sigmoid that turns it into a yes/no probability.
+     Stack that machine on itself and you have a neural network. Point it at running text and its inner weights turn into the
+     word vectors that word2vec is famous for.</p>
+  <p class="uses">The data on this page is made up (blobs of points, a 14-word corpus), except the movie-review example from class.
+     Everything is trained live in your browser. If linear and logistic regression feel rusty, visit
+     <a href="../linear-and-logistic-regression/">From a Number to a Yes</a> first.</p>
+  <div class="scroll-hint">scroll to begin<span class="arrow">↓</span></div>
+</header>
+
+<nav id="dotnav" aria-label="Chapters"></nav>
+<div id="tip" role="status"></div>
+
+<main>
+
+  <!-- ================= Chapter 1 ================= -->
+  <section class="chapter" id="ch1">
+    <div class="sticky">
+      <svg id="viz1" role="img" aria-label="A movie review's six features times their weights add up to a score, which the sigmoid squashes into a probability; then the penalty curve, a weight that grows forever, and softmax bars"></svg>
+      <div class="caption" id="cap1"></div>
+      <div class="controls" id="ctl1">
+        <div class="grp" data-for="0">
+          <label for="sPos">Positive words <input id="sPos" type="range" min="0" max="8" step="1" value="3"><span class="out" id="oPos"></span></label>
+          <label for="sNeg">Negative words <input id="sNeg" type="range" min="0" max="8" step="1" value="2"><span class="out" id="oNeg"></span></label>
+        </div>
+        <div class="grp" data-for="1">
+          <span class="end">The review really is</span>
+          <button type="button" data-y="1" aria-pressed="true">positive</button><button type="button" data-y="0" aria-pressed="false">negative</button>
+        </div>
+        <div class="grp" data-for="2">
+          <span class="end">Penalty on the weight</span>
+          <button type="button" data-lam="0" aria-pressed="false">none</button><button type="button" data-lam="1" aria-pressed="true">small</button><button type="button" data-lam="2" aria-pressed="false">large</button>
+        </div>
+        <div class="grp" data-for="3">
+          <label for="sc0">positive <input id="sc0" type="range" min="-4" max="4" step="0.1" value="0.8"></label>
+          <label for="sc1">neutral <input id="sc1" type="range" min="-4" max="4" step="0.1" value="0.2"></label>
+          <label for="sc2">negative <input id="sc2" type="range" min="-4" max="4" step="0.1" value="-0.6"></label>
+        </div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="review">
+        <span class="tag">1 · One yes/no machine</span>
+        <h3>Weighted evidence, then a squish</h3>
+        <p>You know this machine: weight each feature, then add up. Here a movie review is six hand-made numbers (the example from class).
+           Each weight times its feature is evidence for (blue) or against (orange); the total is the score <b>z</b>.</p>
+        <p>Logistic regression adds the <b>sigmoid</b>, which turns any score into a probability. This review: z = {{z}}, so {{pPct}}% positive. Move the sliders.</p>
+        <span class="formula">\(z=b+w_1x_1+\dots+w_6x_6,\qquad P(\text{positive})=\sigma(z)=\dfrac{1}{1+e^{-z}}\)</span>
+        <p class="note">The last feature is ln of the word count: length, tamed by a log.</p>
+      </div>
+      <div class="step" data-scene="loss">
+        <span class="tag">1 · One yes/no machine</span>
+        <h3>How wrong is a probability?</h3>
+        <p>Training needs a penalty. Take the probability the model gave to the <i>right</i> answer. Sure and right costs almost nothing; sure and wrong costs the most.
+           Training lowers the average penalty, the <b>cross-entropy</b> loss.</p>
+        <span class="formula">\(\text{penalty}=-\ln p_{\text{right}}\)</span>
+        <p class="note">Flip the true label under the figure. This is the log-loss of <i>From a Number to a Yes</i>.</p>
+      </div>
+      <div class="step" data-scene="reg">
+        <span class="tag">1 · One yes/no machine</span>
+        <h3>When the data can be split perfectly <span class="opt">optional</span></h3>
+        <p>Imagine twelve invented reviews that one threshold separates perfectly. A steeper sigmoid is then always a little better, so without a penalty the weight never stops
+           growing and the loss only creeps towards 0: after {{sepSteps}} steps it has reached {{sepW0}}.</p>
+        <p>You met the cure in ElasticNet: punish large weights. Scroll to train, then pick a penalty size. (Stopping early works too.)</p>
+        <span class="formula">\(\text{loss}=\text{cross-entropy}+\tfrac{\lambda}{2}\,w^2\)</span>
+        <p class="note">L1 and ElasticNet are explained in <a href="../scaling-and-generalization/">Same Units, Fair Distances</a>.</p>
+      </div>
+      <div class="step" data-scene="softmax">
+        <span class="tag">1 · One yes/no machine</span>
+        <h3>More than two answers: softmax</h3>
+        <p>Positive, neutral or negative? Give each class its own score; <b>softmax</b> turns the scores into probabilities that add up to 1. It is the sigmoid for many classes.
+           The right answer is written as a one-hot vector, and the penalty is the same −ln of its probability.</p>
+        <span class="formula">\(P(k)=\dfrac{e^{z_k}}{e^{z_1}+e^{z_2}+e^{z_3}}\)</span>
+        <p class="note">Remember softmax: at the end of this page the “classes” are the words of a language.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 2 ================= -->
+  <section class="chapter" id="ch2">
+    <div class="sticky">
+      <svg id="viz2" role="img" aria-label="The review model drawn as a neuron: six inputs, weighted edges, a sum, an activation function and an output; then a timeline from the 1943 threshold neuron to the perceptron"></svg>
+      <div class="caption" id="cap2"></div>
+      <div class="controls" id="ctl2">
+        <div class="grp" data-for="0">
+          <span class="end">Activation</span>
+          <button type="button" data-act="sigmoid" aria-pressed="true">sigmoid</button><button type="button" data-act="relu" aria-pressed="false">ReLU</button>
+        </div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="neuron">
+        <span class="tag">2 · A neuron</span>
+        <h3>Logistic regression, drawn as a circle</h3>
+        <p>Draw the review model as a diagram: six inputs, six weighted edges (thicker means a bigger weight; blue pushes up, orange pushes down) and one circle that adds
+           them up and applies an <b>activation function</b>. That circle is a <b>neuron</b>.</p>
+        <p>Only the squish is a free choice. Sigmoid gives a probability. ReLU, max(0, z), just cuts off negatives and is popular inside networks. Switch below.</p>
+      </div>
+      <div class="step" data-scene="bio">
+        <span class="tag">2 · A neuron</span>
+        <h3>Brain or bending? <span class="opt">optional</span></h3>
+        <p>The name comes from biology. 1943: McCulloch and Pitts model a neuron as a threshold switch. 1958: Rosenblatt's perceptron learns its weights from examples
+           (with a step, not a sigmoid).</p>
+        <p>But real neurons spike at varying frequencies, and brains seem to learn differently. Better to think of a network as a chain of learned bendings of data, not a model of the brain.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 3 ================= -->
+  <section class="chapter" id="ch3">
+    <div class="sticky">
+      <svg id="viz3" role="img" aria-label="Four blobs of made-up points that no straight line separates; the regions learned by networks with different numbers of hidden neurons; the points moved into the hidden neurons' space, where a straight line works"></svg>
+      <div class="caption" id="cap3"></div>
+      <div class="controls" id="ctl3">
+        <div class="grp" data-for="1">
+          <span class="end">Hidden neurons</span>
+          <button type="button" data-hid="0" aria-pressed="false">0</button><button type="button" data-hid="2" aria-pressed="true">2</button><button type="button" data-hid="3" aria-pressed="false">3</button><button type="button" data-hid="8" aria-pressed="false">8</button>
+        </div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="xor">
+        <span class="tag">3 · One neuron is not enough</span>
+        <h3>One neuron, one straight line</h3>
+        <p>Made-up points in four blobs. The two blobs on one diagonal are “yes” (blue circles), the other two “no” (orange diamonds).</p>
+        <div class="predict" data-pick="">
+          <p class="q">Predict: how many of the {{xorN}} points can a single neuron get right?</p>
+          <button type="button" data-a="all">All</button><button type="button" data-a="three">About three quarters</button><button type="button" data-a="half">About half</button>
+          <div class="reveal" hidden><b>At best three quarters, and this trained neuron gets {{xorAcc0}}%.</b> One neuron means one weighted sum and one threshold: one straight line. No line splits this data.</div>
+        </div>
+      </div>
+      <div class="step" data-scene="hidden">
+        <span class="tag">3 · One neuron is not enough</span>
+        <h3>Add a hidden layer</h3>
+        <p>Put a layer of neurons between the inputs and the answer. Each <b>hidden neuron</b> draws its own line (dashed); the output neuron combines their answers into curved regions.
+           Try 2, 3 and 8: accuracy {{acc2}}%, {{acc3}}% and {{acc8}}%.</p>
+        <p class="note">Same sigmoid neurons as before: a network is neurons feeding neurons.</p>
+      </div>
+      <div class="step" data-scene="space">
+        <span class="tag">3 · One neuron is not enough</span>
+        <h3>Bend the space, then draw a line</h3>
+        <p>What does the output neuron actually see? Not the original points but the two hidden neurons' answers. Scroll and watch the points move into that new space:
+           there, one straight line separates them.</p>
+        <p>This is the kernel trick of the <a href="../svm-and-kernels/">SVM page</a>, except that the bending is learned from data. A network is a chain of learned, non-linear projections.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 4 ================= -->
+  <section class="chapter" id="ch4">
+    <div class="sticky">
+      <svg id="viz4" role="img" aria-label="A layered network with input, hidden and output layers and their sizes; then numbers flowing forward through a small trained network"></svg>
+      <div class="caption" id="cap4"></div>
+      <div class="controls" id="ctl4">
+        <div class="grp" data-for="1">
+          <label for="sX1">Input 1 <input id="sX1" type="range" min="-1.5" max="1.5" step="0.1" value="0.9"><span class="out" id="oX1"></span></label>
+          <label for="sX2">Input 2 <input id="sX2" type="range" min="-1.5" max="1.5" step="0.1" value="-0.9"><span class="out" id="oX2"></span></label>
+        </div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="layers">
+        <span class="tag">4 · Layers and the forward pass</span>
+        <h3>Layers, and who chooses their size</h3>
+        <p>The inputs form the <b>input layer</b>, the last neurons the <b>output layer</b>, everything between the <b>hidden layers</b>. The data fixes two sizes: inputs = number of features
+           (6 for our reviews), outputs = number of classes (3). The hidden size is your choice.</p>
+        <div class="predict" data-pick="">
+          <p class="q">Predict: a network turns one English word into one German word. How big are its input and output layers?</p>
+          <button type="button" data-a="few">A handful</button><button type="button" data-a="vocab">One neuron per word in each vocabulary</button>
+          <div class="reveal" hidden><b>One per word in each vocabulary:</b> a one-hot input for the English word, a softmax output over the German words (we meet this again in chapter 7).
+            Sentences vary in length, which is why real translation needs fancier networks.</div>
+        </div>
+      </div>
+      <div class="step" data-scene="forward">
+        <span class="tag">4 · Layers and the forward pass</span>
+        <h3>Using a network: the forward pass</h3>
+        <p>To use a trained network, feed numbers in and let them flow: multiply, add, squish, layer after layer. Move the two inputs. Nothing is learned here;
+           the weights stay fixed. This is the <b>forward pass</b>.</p>
+        <p class="note">This small network is the one trained on the blobs of chapter 3 (two hidden neurons).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 5 ================= -->
+  <section class="chapter" id="ch5">
+    <div class="sticky">
+      <svg id="viz5" role="img" aria-label="One training example going forward, then the blame flowing backwards and the weights being nudged; the regions and the loss curve while a network trains; what training learns and what you choose"></svg>
+      <div class="caption" id="cap5"></div>
+      <div class="controls" id="ctl5"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="backprop">
+        <span class="tag">5 · Learning</span>
+        <h3>Who is to blame?</h3>
+        <p>Training starts with a guess: run one example forward and measure the penalty. Then the blame flows <i>backwards</i>: every weight gets a number for how much it
+           contributed to the error, and gradient descent nudges it the other way. This is <b>backpropagation</b>. Scroll through the four phases.</p>
+        <p class="note">“Blame” is the gradient of the loss for that weight, found layer by layer with the chain rule. It happens only during training.</p>
+      </div>
+      <div class="step" data-scene="train">
+        <span class="tag">5 · Learning</span>
+        <h3>Repeat, many times</h3>
+        <p>One nudge is tiny. Training repeats it over all the examples, again and again; one pass over all the data is an <b>epoch</b>. Scroll to watch {{epochs}} epochs: the loss falls
+           and the regions bend around the blobs.</p>
+      </div>
+      <div class="step" data-scene="choices">
+        <span class="tag">5 · Learning</span>
+        <h3>What training does not learn</h3>
+        <p>Training learns only the weights and biases. You choose everything else, the <b>hyper-parameters</b>, and the loss must fit the task:
+           squared error for numbers, cross-entropy for classes.</p>
+        <p class="note">Frameworks (PyTorch, Keras, HuggingFace, spaCy) do most of the work. Start from an existing model and change what you need.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 6 ================= -->
+  <section class="chapter" id="ch6">
+    <div class="sticky">
+      <svg id="viz6" role="img" aria-label="One-hot vectors for four words and their cosine similarities; the co-occurrence rows of the same words and their cosine similarities; two routes to dense word vectors"></svg>
+      <div class="caption" id="cap6"></div>
+      <div class="controls" id="ctl6">
+        <div class="grp" data-for="1">
+          <label for="selPair">Compare <select id="selPair"></select></label>
+        </div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="onehot">
+        <span class="tag">6 · Words as numbers</span>
+        <h3>Every word equally unrelated</h3>
+        <p>A network needs numbers, so give each word a <b>one-hot</b> vector: a 1 in its own position, zeros elsewhere. With 100,000 words, that is 100,000 numbers per word.</p>
+        <p>And the <b>cosine similarity</b> of any two different one-hot words is 0: <i>cheese</i> is as unrelated to <i>bread</i> as to <i>sheep</i>.</p>
+        <p class="note">Cosine similarity: 1 means two vectors point the same way, 0 unrelated, −1 opposite.</p>
+      </div>
+      <div class="step" data-scene="company">
+        <span class="tag">6 · Words as numbers</span>
+        <h3>The company a word keeps</h3>
+        <p>“You shall know a word by the company it keeps.” Count which words occur near which (the <a href="../pmi/">PMI page</a> does this carefully). A word's row of counts describes its company.</p>
+        <p>Compare rows with cosine similarity: <i>cheese</i> and <i>bread</i>, whose rows look alike, score {{cc 0 1}}; <i>bread</i> and <i>sheep</i> score {{cc 1 3}}. Pick a pair below.</p>
+      </div>
+      <div class="step" data-scene="dense">
+        <span class="tag">6 · Words as numbers</span>
+        <h3>Two routes to short, dense vectors</h3>
+        <p>Rows of counts are long and mostly zeros. We want a few hundred numbers per word. <b>Route 1:</b> count, then compress the table (SVD, as in class).
+           <b>Route 2:</b> train a model to predict words from their neighbours, the next word or a missing one (a cloze test), and keep what it learns.</p>
+        <p>The next two chapters take route 2.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 7 ================= -->
+  <section class="chapter" id="ch7">
+    <div class="sticky">
+      <svg id="viz7" role="img" aria-label="A word graph of a tiny corpus with next-word probabilities; a one-hot vector picking one row of an inner matrix; a network that predicts the next word, compared with the word graph"></svg>
+      <div class="caption" id="cap7"></div>
+      <div class="controls" id="ctl7">
+        <div class="grp" data-for="0 1 2">
+          <label for="selWord">Current word <select id="selWord"></select></label>
+        </div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="markov">
+        <span class="tag">7 · From counting to a network</span>
+        <h3>A Markov chain: what follows what</h3>
+        <p>A tiny made-up corpus: {{nSent}} sentences, {{pairs}} pairs of neighbouring words. Draw each word as a node and link A to B with the probability that B follows A.
+           That graph is a <b>Markov chain</b>. Pick a word to see its outgoing probabilities.</p>
+        <div class="predict" data-pick="">
+          <p class="q">Predict: how likely is <i>pool</i> right after <i>motel</i>?</p>
+          <button type="button" data-a="likely">Fairly likely</button><button type="button" data-a="small">Unlikely but possible</button><button type="button" data-a="zero">Exactly zero</button>
+          <div class="reveal" hidden><b>Exactly zero:</b> “motel pool” never occurs in the corpus. A Markov chain is a table of counts: it knows only the pairs it has seen, and every word stands alone.</div>
+        </div>
+      </div>
+      <div class="step" data-scene="lookup">
+        <span class="tag">7 · From counting to a network</span>
+        <h3>An inner matrix, one row per word</h3>
+        <p>Now a neural network. Its input is a one-hot vector. Multiply it by an inner matrix with one row per word and the 1 picks out that word's row: just two numbers.</p>
+        <p>This <b>embedding layer</b> is a lookup table too, but its rows are a few learned numbers, not counts. They start random and are changed by backpropagation like any other weights.</p>
+      </div>
+      <div class="step" data-scene="bigram">
+        <span class="tag">7 · From counting to a network</span>
+        <h3>Predict the next word</h3>
+        <p>Behind the inner matrix sit more weights and a softmax over all {{V}} words: the probability of each next word. Labels come free: in running text, the next word <i>is</i> the label.
+           Bars: the network. Ticks: the Markov table.</p>
+        <p>With no activation in the hidden layer, every word squeezes through the same two numbers, so words with similar followers end up with similar rows.</p>
+        <p class="note">The neural language model of Bengio et al. (2003), trained for {{embEpochs}} epochs.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Chapter 8 ================= -->
+  <section class="chapter" id="ch8">
+    <div class="sticky">
+      <svg id="viz8" role="img" aria-label="Two-number word vectors drawn as arrows from the centre that turn towards similar words while the network trains; then a checklist of what word2vec changes"></svg>
+      <div class="caption" id="cap8"></div>
+      <div class="controls" id="ctl8"></div>
+    </div>
+    <div class="steps">
+      <div class="step" data-scene="nearby">
+        <span class="tag">8 · Similar words, nearby rows</span>
+        <h3>Similar words, similar rows</h3>
+        <p>Scroll to train. Each word's two numbers are an arrow from the centre. Nobody said <i>hotel</i> and <i>motel</i> are alike, but they keep the same company, so their arrows
+           turn the same way: cosine similarity {{cosHM}}. <i>Goat</i> and <i>sheep</i>: {{cosGS}}.</p>
+        <p>The unseen pair: after <i>motel</i> the network gives <i>pool</i> {{pMotelPool}}, after <i>goat</i> {{pGoatPool}}. The Markov chain says 0 for both.</p>
+        <p class="note">Real embeddings have 50 to 1000 numbers per word, not 2.</p>
+      </div>
+      <div class="step" data-scene="next">
+        <span class="tag">8 · Similar words, nearby rows</span>
+        <h3>Where word2vec comes in</h3>
+        <p>This surprise started the search for better word vectors, and word2vec (Mikolov et al., 2013) was one of the first. As you read about it, look for how it differs from our toy:</p>
+        <ul class="mini">
+          <li>neighbours on <b>both</b> sides: skip-gram and CBOW</li>
+          <li><b>negative sampling</b> instead of a softmax over every word</li>
+          <li>how vectors are judged: cosine neighbours, analogy tests</li>
+          <li>what came next: FastText, BPE, contextual vectors (ELMo, BERT, GPT)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p><b>From a Yes to a Network: a visual introduction to neural networks and the stage for word2vec.</b>
+     Part of the <i>Introduction to ML for Language Technologies</i> course materials. The sequel to
+     <a href="../linear-and-logistic-regression/">From a Number to a Yes</a>.</p>
+  <p>Further reading: Jurafsky &amp; Martin, <i>Speech and Language Processing</i>, chapters 5 (logistic regression), 6 (vectors and embeddings) and 7 (neural networks);
+     Jay Alammar, <a href="https://jalammar.github.io/illustrated-word2vec/">The Illustrated Word2vec</a>;
+     <a href="https://lena-voita.github.io/nlp_course.html">Lena Voita's NLP course</a>.</p>
+  <p>Apart from the movie-review example (from the course slides), the data is synthetic: the point blobs and the 14-word corpus are invented, and every training run uses a fixed random seed.
+     Every number on this page is computed in your browser by <code>nn-math.js</code> (unit-tested by <code>nn-math.test.js</code>). The page works offline; open the file directly.</p>
+</footer>
+
+<script src="../vendor/katex/katex.min.js"></script>
+<script src="../vendor/katex/auto-render.min.js" onerror="this.onerror=null"></script>
+<script src="nn-math.js"></script>
+<script src="kit.js"></script>
+<script src="ch-neuron.js"></script>
+<script src="ch-network.js"></script>
+<script src="ch-words.js"></script>
+<script src="ch-handoff.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
